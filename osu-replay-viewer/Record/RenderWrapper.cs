@@ -15,6 +15,6 @@ public abstract class RenderWrapper
         PixelFormat = pixelFormat;
         ColorSpace = colorSpace;
     }
-    public abstract void WriteFrame(EncoderBase encoder);
+    public abstract bool WriteFrame(EncoderBase encoder);
     public virtual void Finish(EncoderBase encoder) { }
 }

@@ -357,6 +357,17 @@ namespace osu_replay_renderer_netcore.CustomHosts
         protected virtual void SetupHostInRender()
         {
             Config.SetValue(FrameworkSetting.FrameSync, FrameSync.Unlimited);
+
+            if (RuntimeInfo.IsApple)
+            {
+                Config.SetValue(FrameworkSetting.WindowedSize, encoder.Config.Resolution / 2);
+            }
+            else
+            {
+                Config.SetValue(FrameworkSetting.WindowedSize, encoder.Config.Resolution);
+            }
+
+            Config.SetValue(FrameworkSetting.WindowMode, WindowMode.Windowed);
         }
 
         private Container getRoot()
@@ -368,19 +379,7 @@ namespace osu_replay_renderer_netcore.CustomHosts
         }
 
         protected override void DrawFrame()
-        {            
-            // Make sure we're using correct framework config
-            if (RuntimeInfo.IsApple)
-            {
-                // Retina display
-                Config.SetValue(FrameworkSetting.WindowedSize, encoder.Config.Resolution / 2);
-            }
-            else
-            {
-                Config.SetValue(FrameworkSetting.WindowedSize, encoder.Config.Resolution);
-            }
-            Config.SetValue(FrameworkSetting.WindowMode, WindowMode.Windowed);
-            
+        {
             if (!setupHostInRender)
             {
                 setupHostInRender = true;
@@ -434,7 +433,12 @@ namespace osu_replay_renderer_netcore.CustomHosts
                 Console.WriteLine("Render started");
             }
 
-            wrapper.WriteFrame(encoder);
+            bool frameCaptured = wrapper.WriteFrame(encoder);
+
+            if (!frameCaptured)
+            {
+                return;
+            }
             
             // Audio mixing
             if (isAudioPatched && audioEncoder != null)

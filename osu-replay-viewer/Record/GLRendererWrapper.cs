@@ -152,14 +152,14 @@ public sealed class GLRendererWrapper : RenderWrapper
         };
     }
 
-    public override void WriteFrame(EncoderBase encoder)
+    public override bool WriteFrame(EncoderBase encoder)
     {
         Size drawableSize = surface.GetDrawableSize();
 
         if (drawableSize.Width != DesiredSize.Width || drawableSize.Height != DesiredSize.Height)
         {
             Console.WriteLine($"Skipped frame: drawable={drawableSize}, desired={DesiredSize}");
-            return;
+            return false;
         }
 
         WithGLContext(() =>
@@ -169,6 +169,8 @@ public sealed class GLRendererWrapper : RenderWrapper
             else
                 WriteFrameYUV(encoder);
         });
+
+        return true;
     }
 
     private void WriteFrameYUV(EncoderBase encoder)
