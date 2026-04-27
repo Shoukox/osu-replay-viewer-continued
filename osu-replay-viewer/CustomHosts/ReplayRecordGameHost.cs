@@ -54,8 +54,9 @@ namespace osu_replay_renderer_netcore.CustomHosts
         
         private readonly bool isFinishFramePatched;
         private readonly bool isAudioPatched;
-        
-        private readonly StreamingAudioMixer audioMixer = new(new AudioFormat { Channels = 2, SampleRate = 44100, PCMSize = 2 });
+
+        private const int OutputAudioSampleRate = 48000;
+        private readonly StreamingAudioMixer audioMixer = new(new AudioFormat { Channels = 2, SampleRate = OutputAudioSampleRate, PCMSize = 2 });
         private ExternalAudioEncoder audioEncoder;
         private double lastAudioTime = 0;
 
@@ -97,7 +98,7 @@ namespace osu_replay_renderer_netcore.CustomHosts
             if (isAudioPatched)
             {
                 var audioPath = encoder.Config.OutputPath + ".audio.aac";
-                audioEncoder = new ExternalAudioEncoder(audioPath, 44100, 2, encoder.Config.FFmpegExec);
+                audioEncoder = new ExternalAudioEncoder(audioPath, OutputAudioSampleRate, 2, encoder.Config.FFmpegExec);
                 audioEncoder.Start();
                 lastAudioTime = 0;
             }

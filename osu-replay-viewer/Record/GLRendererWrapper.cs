@@ -20,6 +20,8 @@ public sealed class GLRendererWrapper : RenderWrapper
         GLRendererType.GetField("openGLSurface", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)
         ?? throw new InvalidOperationException("openGLSurface field not found.");
 
+    private static readonly object GlobalGlCaptureLock = new();
+
     private const int PboCount = 3;
 
     private readonly IGraphicsSurface surface;
@@ -89,30 +91,32 @@ public sealed class GLRendererWrapper : RenderWrapper
 
     private void WithGLContext(Action action)
     {
-        IntPtr windowContext = openGLSurface.WindowContext;
-
-        if (windowContext == IntPtr.Zero)
-            throw new InvalidOperationException("OpenGL window context is not available.");
-
-        IntPtr previousContext = openGLSurface.CurrentContext;
-        bool switchedContext = previousContext != windowContext;
-
-        if (switchedContext)
-            openGLSurface.MakeCurrent(windowContext);
-
-        try
+        lock (GlobalGlCaptureLock)
         {
-            action();
-        }
-        finally
-        {
+            IntPtr windowContext = openGLSurface.WindowContext;
+
+            if (windowContext == IntPtr.Zero)
+                throw new InvalidOperationException("OpenGL window context is not available.");
+
+            IntPtr previousContext = openGLSurface.CurrentContext;
+            bool switchedContext = previousContext != windowContext;
+
             if (switchedContext)
-            {
+                openGLSurface.MakeCurrent(windowContext);
 
-                if (previousContext != IntPtr.Zero)
-                    openGLSurface.MakeCurrent(previousContext);
-                else
-                    openGLSurface.ClearCurrent();
+            try
+            {
+                action();
+            }
+            finally
+            {
+                if (switchedContext)
+                {
+                    if (previousContext != IntPtr.Zero)
+                        openGLSurface.MakeCurrent(previousContext);
+                    else
+                        openGLSurface.ClearCurrent();
+                }
             }
         }
     }

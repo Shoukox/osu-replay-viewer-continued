@@ -486,7 +486,7 @@ namespace osu_replay_renderer_netcore
                 
                 Console.WriteLine("Decoding audio...");
                 sw.Restart();
-                var track = FFmpegAudioTools.Decode(GetCurrentBeatmapAudioPath(), tempoFactor: speed, pitchFactor: pitch, volume: volumeMusic * volumeUniversal);
+                var track = FFmpegAudioTools.Decode(GetCurrentBeatmapAudioPath(), tempoFactor: speed, pitchFactor: pitch, volume: volumeMusic * volumeUniversal, outChannels: 2, outRate: 48000);
                 sw.Stop();
                 Console.WriteLine($"Audio decoded in {sw.ElapsedMilliseconds}ms");
                 recordHost.SetAudioTrack(track);
