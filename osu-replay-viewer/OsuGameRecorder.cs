@@ -4,6 +4,7 @@ using osu.Framework.Allocation;
 using osu.Framework.Configuration;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Input;
+using osu.Framework.Platform;
 using osu.Framework.Screens;
 using osu.Framework.Timing;
 using osu.Game;
@@ -410,7 +411,8 @@ namespace osu_replay_renderer_netcore
             config.SetValue(FrameworkSetting.VolumeMusic, settings.VolumeMusic);
             config.SetValue(FrameworkSetting.VolumeEffect, settings.VolumeEffects);
             config.SetValue(FrameworkSetting.VolumeUniversal, settings.VolumeMaster);
-            
+            config.SetValue(FrameworkSetting.FrameSync, FrameSync.Unlimited);
+
             LocalConfig.SetValue(OsuSetting.HitLighting, false);
                 
             Audio.Balance.Value = 0;

@@ -4,25 +4,34 @@ namespace osu_replay_renderer_netcore.CustomHosts.CustomClocks
 {
     public class RecordClock : IFrameBasedClock
     {
-        public double FrameTime { get; private set; }
-        public ulong CurrentFrame { get; set; } = 0;
-        private int FPS;
+        private readonly int fps;
+
+        public double FrameTime { get; }
+        public ulong CurrentFrame { get; set; }
 
         public RecordClock(int frameRate)
         {
-            FPS = frameRate;
-            FrameTime = 1000.0 / FPS;
+            fps = frameRate;
+            FrameTime = 1000.0 / fps;
         }
 
-        public double ClockOffset = 0;
+        public double ClockOffset { get; set; } = 0;
 
         public double ElapsedFrameTime => FrameTime;
-        public double FramesPerSecond => FPS;
-        FrameTimeInfo IFrameBasedClock.TimeInfo => new() { Elapsed = FrameTime, Current = CurrentTime };
-        public double CurrentTime => 1000.0 * (CurrentFrame / FramesPerSecond);
-        public double Rate => 1.00;
+        public double FramesPerSecond => fps;
+
+        FrameTimeInfo IFrameBasedClock.TimeInfo => new()
+        {
+            Elapsed = FrameTime,
+            Current = CurrentTime
+        };
+
+        public double CurrentTime => ClockOffset + 1000.0 * CurrentFrame / FramesPerSecond;
+        public double Rate => 1.0;
         public bool IsRunning => true;
 
-        public void ProcessFrame() {}
+        public void ProcessFrame()
+        {
+        }
     }
 }

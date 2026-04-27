@@ -143,7 +143,7 @@ namespace osu_replay_renderer_netcore
                         Name = "Experimental Toggle",
                         Description = "Toggle experimental feature",
                         DoubleDashes = new[] { "experimental" },
-                        SingleDash = new[] { "experimental" },
+                        SingleDash = new[] { "exp" },
                         Parameters = new[] { "Flag" }
                     },
                     overrideOverlayOptions = new()

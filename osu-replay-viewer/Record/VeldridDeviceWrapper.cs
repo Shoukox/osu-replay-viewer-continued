@@ -183,6 +183,8 @@ public class VeldridDeviceWrapper : RenderWrapper
                 throw new NotSupportedException("Currently only OpenGL is supported");
             }
         }
+
+        return true;
     }
 
     public override unsafe void Finish(EncoderBase encoder)

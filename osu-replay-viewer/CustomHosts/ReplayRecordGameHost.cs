@@ -350,13 +350,16 @@ namespace osu_replay_renderer_netcore.CustomHosts
             // 6. Jump to step 2 until the game decided to end
 
             MaximumDrawHz = recordClock.FramesPerSecond;
-            MaximumUpdateHz = MaximumInactiveHz = 0;
+            MaximumUpdateHz = recordClock.FramesPerSecond;
+            MaximumInactiveHz = recordClock.FramesPerSecond;
         }
         private bool setupHostInRender = false;
 
         protected virtual void SetupHostInRender()
         {
             Config.SetValue(FrameworkSetting.FrameSync, FrameSync.Unlimited);
+            Config.SetValue(FrameworkSetting.Renderer, RendererType.Direct3D11);
+            //Config.SetValue(FrameworkSetting.ExecutionMode, ExecutionMode.SingleThread);
 
             if (RuntimeInfo.IsApple)
             {
