@@ -1,4 +1,5 @@
 ﻿using AutoMapper.Internal;
+using HarmonyLib;
 using osu.Framework.Allocation;
 using osu.Framework.Configuration;
 using osu.Framework.Graphics.Containers;
@@ -7,30 +8,30 @@ using osu.Framework.Screens;
 using osu.Framework.Timing;
 using osu.Game;
 using osu.Game.Beatmaps;
+using osu.Game.Configuration;
 using osu.Game.Database;
 using osu.Game.Graphics.Containers;
 using osu.Game.Rulesets;
+using osu.Game.Rulesets.Mania.Configuration;
+using osu.Game.Rulesets.Mania.UI;
 using osu.Game.Rulesets.Mods;
+using osu.Game.Rulesets.Osu.Configuration;
 using osu.Game.Scoring;
 using osu.Game.Scoring.Legacy;
 using osu.Game.Screens.Play;
 using osu.Game.Screens.Ranking;
 using osu.Game.Screens.Ranking.Statistics;
+using osu.Game.Skinning;
+using osu.Game.Tests.Rulesets;
 using osu_replay_renderer_netcore.Audio.Conversion;
 using osu_replay_renderer_netcore.CustomHosts;
+using osu_replay_renderer_netcore.CustomHosts.CustomClocks;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using HarmonyLib;
-using osu_replay_renderer_netcore.CustomHosts.CustomClocks;
-using osu.Game.Configuration;
-using osu.Game.Rulesets.Mania.Configuration;
-using osu.Game.Rulesets.Osu.Configuration;
-using osu.Game.Skinning;
-using osu.Game.Tests.Rulesets;
 
 namespace osu_replay_renderer_netcore
 {
@@ -466,6 +467,7 @@ namespace osu_replay_renderer_netcore
                 LocalConfig.GetBindable<bool>(OsuSetting.BeatmapHitsounds).Value = settings.BeatmapHitsounds;
                 LocalConfig.GetBindable<bool>(OsuSetting.ShowStoryboard).Value = settings.ShowStoryboard;
                 LocalConfig.GetBindable<double>(OsuSetting.DimLevel).Value = settings.BackgroundDim;
+                LocalConfig.GetBindable<bool>(OsuSetting.ShowFpsDisplay).Value = true;
             }
 
             if (Host is ReplayRecordGameHost recordHost && recordHost.NeedAudio)
@@ -524,8 +526,10 @@ namespace osu_replay_renderer_netcore
                 osuMgr.SetValue(OsuRulesetSetting.ReplayClickMarkersEnabled, false);
             } else if (configMgr is ManiaRulesetConfigManager maniaMgr)
             {
-                maniaMgr.SetValue(ManiaRulesetSetting.ScrollSpeed, 26d);
+                maniaMgr.SetValue(ManiaRulesetSetting.ScrollSpeed, settings.ScrollSpeed);
+                maniaMgr.SetValue(ManiaRulesetSetting.ScrollDirection, settings.ScrollDirection == "down" ? ManiaScrollingDirection.Down : ManiaScrollingDirection.Up);
             }
+            
         }
 
         [BackgroundDependencyLoader]

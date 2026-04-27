@@ -25,6 +25,8 @@ public class GameSettings
     [JsonProperty("music_volume")] public double VolumeMusic = 0.6;
     [JsonProperty("effects_volume")] public double VolumeEffects = 0.6;
     [JsonProperty("master_volume")] public double VolumeMaster = 0.6;
+    [JsonProperty("scroll_speed")] public double ScrollSpeed = 25.0;
+    [JsonProperty("scroll_direction")] public string ScrollDirection = "down";
 }
 
 public class Config
@@ -42,7 +44,7 @@ public class Config
         [JsonProperty("mode")] public FFmpegMode Mode = FFmpegMode.Pipe;
         [JsonProperty("libraries_path")] public string LibrariesPath = string.Empty;
         [JsonProperty("ffmpeg_executable")] public string Executable = "ffmpeg";
-        [JsonProperty("video_encoder")] public string VideoEncoder = "libx264";
+        [JsonProperty("video_encoder")] public string VideoEncoder = "h264_nvenc";
         [JsonProperty("video_encoder_preset")] public string VideoEncoderPreset = "slow";
         [JsonProperty("video_encoder_bitrate")] public string VideoEncoderBitrate = "100M";
         
@@ -51,7 +53,7 @@ public class Config
     
     public class OutputOptionsObject
     {
-        [JsonProperty("pixel_format")] public PixelFormatMode PixelFormat = PixelFormatMode.RGB;
+        [JsonProperty("pixel_format")] public PixelFormatMode PixelFormat = PixelFormatMode.YUV420;
         [JsonProperty("yuv_color_space")] public ColorSpaceMode ColorSpace = ColorSpaceMode.BT709;
     }
     [JsonProperty("output_options")] public OutputOptionsObject OutputOptions = new();
