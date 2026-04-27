@@ -1,0 +1,32 @@
+{
+  "record_options": {
+    "fps": 60,
+    "resolution": "1280x720",
+    "renderer": "Auto"
+  },
+  "ffmpeg_options": {
+    "mode": "Pipe",
+    "libraries_path": "ffmpeg",
+    "ffmpeg_executable": "ffmpeg",
+    "video_encoder": "h264_nvenc",
+    "video_encoder_preset": "slow",
+    "video_encoder_bitrate": "5M"
+  },
+  "output_options": {
+    "pixel_format": "RGB",
+    "yuv_color_space": "BT709"
+  },
+  "game_settings": {
+    "skip_intro": false,
+    "background_dim": 0.75,
+    "show_storyboard_or_video": false,
+    "use_beatmap_hitsounds": false,
+    "use_beatmap_skin": false,
+    "use_beatmap_colors": false,
+    "music_volume": 0.6,
+    "effects_volume": 0.6,
+    "master_volume": 0.6,
+    "scroll_speed": 25.0,
+    "scroll_direction": "up"
+  }
+}
