@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Text;
 
 namespace osu_replay_renderer_netcore.CustomHosts.Record
 {
@@ -8,7 +10,10 @@ namespace osu_replay_renderer_netcore.CustomHosts.Record
     {
         private Process FFmpeg { get; set; }
         private Stream InputStream { get; set; }
-        private string FFmpegArguments
+        private readonly StringBuilder errorBuilder = new();
+        private readonly object errorLock = new();
+
+        private IReadOnlyList<string> FFmpegArgumentList
         {
             get
             {
@@ -20,15 +25,6 @@ namespace osu_replay_renderer_netcore.CustomHosts.Record
                     _ => "rgb24"
                 };
 
-                string filters = Config.PixelFormat == PixelFormatMode.RGB ? "-vf \"vflip\"" : "";
-
-                string colorFlags = Config.PixelFormat != PixelFormatMode.RGB ? Config.ColorSpace switch
-                {
-                    ColorSpaceMode.BT601 => "-colorspace bt470bg -color_primaries bt470bg -color_trc gamma22 -color_range pc",
-                    ColorSpaceMode.BT709 => "-colorspace bt709 -color_primaries bt709 -color_trc bt709 -color_range pc",
-                    _ => ""
-                } : "";
-
                 string outputPixFmt = Config.PixelFormat switch
                 {
                     PixelFormatMode.YUV420 => "yuv420p",
@@ -37,26 +33,56 @@ namespace osu_replay_renderer_netcore.CustomHosts.Record
                     _ => "yuv420p" // RGB input gets converted to yuv420p by FFmpeg
                 };
 
-                var inputParameters = $"-y -f rawvideo -pix_fmt {pixFmt} -s {Config.Resolution.Width}x{Config.Resolution.Height} -r {Config.FPS} -i pipe:";
+                var args = new List<string>
+                {
+                    "-y",
+                    "-f", "rawvideo",
+                    "-pix_fmt", pixFmt,
+                    "-s", $"{Config.Resolution.Width}x{Config.Resolution.Height}",
+                    "-r", Config.FPS.ToString(),
+                    "-i", "pipe:",
+                    "-c:v", Config.Encoder
+                };
 
-                var inputEffect = string.Empty;
-                var encoderSpecific = string.Empty;
+                if (Config.PixelFormat == PixelFormatMode.RGB)
+                {
+                    args.Add("-vf");
+                    args.Add("vflip");
+                }
 
                 switch (Config.Encoder)
                 {
                     case "h264_nvenc":
-                        encoderSpecific = "-rc constqp -qp 21";
+                        args.AddRange(new[] { "-rc", "vbr", "-cq", "32", "-b:v", "0" });
                         break;
                     case "libx264":
                     case "h264_amf":
                     case "h264_qsv":
                     case "h264_videotoolbox":
-                        encoderSpecific = "-crf 21";
+                        args.AddRange(new[] { "-crf", "32" });
                         break;
                 }
 
-                var outputParameters = $"-c:v {Config.Encoder} {filters} {encoderSpecific} {colorFlags} -pix_fmt {outputPixFmt} -preset {Config.Preset} {Config.OutputPath}";
-                return inputParameters + (string.IsNullOrWhiteSpace(inputEffect)? (" " + inputEffect) : "") + " " + outputParameters;
+                if (Config.PixelFormat != PixelFormatMode.RGB)
+                {
+                    switch (Config.ColorSpace)
+                    {
+                        case ColorSpaceMode.BT601:
+                            args.AddRange(new[] { "-colorspace", "bt470bg", "-color_primaries", "bt470bg", "-color_trc", "gamma22", "-color_range", "pc" });
+                            break;
+                        case ColorSpaceMode.BT709:
+                            args.AddRange(new[] { "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709", "-color_range", "pc" });
+                            break;
+                    }
+                }
+
+                args.AddRange(new[] { "-pix_fmt", outputPixFmt });
+
+                if (!string.IsNullOrWhiteSpace(Config.Preset))
+                    args.AddRange(new[] { "-preset", Config.Preset });
+
+                args.Add(Config.OutputPath);
+                return args;
             }
         }
 
@@ -71,27 +97,94 @@ namespace osu_replay_renderer_netcore.CustomHosts.Record
 
         protected override void _finishInternal()
         {
-            InputStream.Close();
-            InputStream = null;
+            if (FFmpeg == null)
+                return;
+
+            Exception closeException = null;
+
+            try
+            {
+                InputStream?.Flush();
+                InputStream?.Dispose();
+            }
+            catch (Exception ex)
+            {
+                closeException = ex;
+            }
+            finally
+            {
+                InputStream = null;
+            }
+
             FFmpeg.WaitForExit();
+
+            int exitCode = FFmpeg.ExitCode;
+            FFmpeg.CancelErrorRead();
+            FFmpeg.Dispose();
             FFmpeg = null;
+
+            if (closeException != null)
+                throw new IOException("Failed while closing FFmpeg video input stream.", closeException);
+
+            if (exitCode != 0)
+            {
+                string errorLog;
+                lock (errorLock)
+                    errorLog = errorBuilder.ToString();
+
+                throw new InvalidOperationException(
+                    $"FFmpeg video encoder exited with code {exitCode}.{Environment.NewLine}{errorLog}");
+            }
         }
 
         protected override void _startInternal()
         {
-            Console.WriteLine("Starting FFmpeg process with arguments: " + FFmpegArguments);
+            if (FFmpeg != null)
+                throw new InvalidOperationException("Video encoder has already been started.");
+
+            var args = FFmpegArgumentList;
+            Console.WriteLine("Starting FFmpeg process with arguments: " + string.Join(" ", args));
+
+            lock (errorLock)
+                errorBuilder.Clear();
+
             FFmpeg = new Process
             {
                 StartInfo =
                 {
                     UseShellExecute = false,
                     FileName = Config.FFmpegExec,
-                    Arguments = FFmpegArguments,
-                    RedirectStandardInput = true
+                    RedirectStandardInput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
                 }
             };
-            FFmpeg.Start();
-            InputStream = FFmpeg.StandardInput.BaseStream;
+
+            foreach (var arg in args)
+                FFmpeg.StartInfo.ArgumentList.Add(arg);
+
+            FFmpeg.ErrorDataReceived += (_, e) =>
+            {
+                if (!string.IsNullOrWhiteSpace(e.Data))
+                {
+                    lock (errorLock)
+                        errorBuilder.AppendLine(e.Data);
+                }
+            };
+
+            try
+            {
+                FFmpeg.Start();
+                FFmpeg.BeginErrorReadLine();
+                InputStream = FFmpeg.StandardInput.BaseStream;
+            }
+            catch
+            {
+                FFmpeg?.Dispose();
+                FFmpeg = null;
+                InputStream = null;
+                throw;
+            }
         }
     }
 }

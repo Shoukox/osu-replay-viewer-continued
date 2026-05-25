@@ -110,7 +110,7 @@ namespace osu_replay_renderer_netcore
             {
                 Anchor = Anchor.TopRight,
                 Origin = Anchor.TopRight,
-                Position = new Vector2(-20, 384),
+                Position = new Vector2(-50, 384),
             });
 
             ppCounter = rightSidePpCounter.Current;

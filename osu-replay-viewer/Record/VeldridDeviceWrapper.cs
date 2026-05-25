@@ -13,19 +13,19 @@ public class VeldridDeviceWrapper : RenderWrapper
 {
     private static readonly Type VeldridRendererType =
         typeof(IRenderer).Assembly.GetType("osu.Framework.Graphics.Veldrid.VeldridRenderer");
-    private static readonly FieldInfo VeldridRenderer_veldridDeviceField = VeldridRendererType.GetField("veldridDevice",
+    private static readonly FieldInfo VeldridRenderer_veldridDeviceField = VeldridRendererType?.GetField("veldridDevice",
         BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
 
     private static readonly Type DeferredRendererType =
         typeof(IRenderer).Assembly.GetType("osu.Framework.Graphics.Rendering.Deferred.DeferredRenderer");
-    private static readonly PropertyInfo DeferredRenderer_VeldridDeviceProperty = DeferredRendererType.GetProperty("VeldridDevice",
+    private static readonly PropertyInfo DeferredRenderer_VeldridDeviceProperty = DeferredRendererType?.GetProperty("VeldridDevice",
         BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
     
     private static readonly Type VeldridDeviceType =
         typeof(IRenderer).Assembly.GetType("osu.Framework.Graphics.Veldrid.VeldridDevice");
     private static readonly PropertyInfo VeldridDevice_DeviceProperty =
-        VeldridDeviceType.GetProperty("Device", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
-    private static readonly FieldInfo VeldridDevice_graphicsSurfaceField = VeldridDeviceType.GetField("graphicsSurface",
+        VeldridDeviceType?.GetProperty("Device", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+    private static readonly FieldInfo VeldridDevice_graphicsSurfaceField = VeldridDeviceType?.GetField("graphicsSurface",
         BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
 
     private readonly IGraphicsSurface graphicsSurface;
@@ -38,17 +38,18 @@ public class VeldridDeviceWrapper : RenderWrapper
 
     public static bool IsSupported(IRenderer renderer)
     {
-        return renderer.GetType() == VeldridRendererType || renderer.GetType() == DeferredRendererType;
+        return (VeldridRendererType != null && renderer.GetType() == VeldridRendererType && VeldridRenderer_veldridDeviceField != null) ||
+               (DeferredRendererType != null && renderer.GetType() == DeferredRendererType && DeferredRenderer_VeldridDeviceProperty != null);
     }
 
     public VeldridDeviceWrapper(IRenderer renderer, Size desiredSize, PixelFormatMode pixelFormat, ColorSpaceMode colorSpace) : base(desiredSize, pixelFormat, colorSpace)
     {
         object veldridDevice;
-        if (renderer.GetType() == VeldridRendererType)
+        if (VeldridRendererType != null && renderer.GetType() == VeldridRendererType && VeldridRenderer_veldridDeviceField != null)
         {
             veldridDevice = VeldridRenderer_veldridDeviceField.GetValue(renderer);
         } 
-        else if (renderer.GetType() == DeferredRendererType)
+        else if (DeferredRendererType != null && renderer.GetType() == DeferredRendererType && DeferredRenderer_VeldridDeviceProperty != null)
         {
             veldridDevice = DeferredRenderer_VeldridDeviceProperty.GetValue(renderer);
         }
@@ -62,11 +63,15 @@ public class VeldridDeviceWrapper : RenderWrapper
             throw new Exception("veldrid device is null");
         }
 
-        if (veldridDevice.GetType() != VeldridDeviceType)
+        if (VeldridDeviceType == null || veldridDevice.GetType() != VeldridDeviceType)
         {
             throw new NotSupportedException("veldrid device has unexpected type");
         }
-           
+
+        if (VeldridDevice_DeviceProperty == null || VeldridDevice_graphicsSurfaceField == null)
+        {
+            throw new NotSupportedException("veldrid device internals are not available");
+        }
 
         var graphicsDevice = VeldridDevice_DeviceProperty.GetValue(veldridDevice);
         if (graphicsDevice is null) throw new Exception("Device is null");

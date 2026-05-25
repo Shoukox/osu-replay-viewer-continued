@@ -2,7 +2,7 @@
   "profiles": {
     "osu-replay-renderer-netcore": {
       "commandName": "Project",
-      "commandLineArgs": "--yes -ex -pr -R --view file C:\\Users\\shach\\Desktop\\osu-replay-viewer-continued\\osu-replay-viewer\\bin\\Debug\\net8.0\\replay.osr -osz C:\\Users\\shach\\Desktop\\osu-replay-viewer-continued\\osu-replay-viewer\\bin\\Debug\\net8.0\\beatmap.osz --skin import C:\\Users\\shach\\Desktop\\osu-replay-viewer-continued\\osu-replay-viewer\\bin\\Debug\\net8.0\\skin.osk --config C:\\Users\\shach\\Desktop\\osu-replay-viewer-continued\\osu-replay-viewer\\bin\\Debug\\net8.0\\orv_config.json -O C:\\Users\\shach\\Desktop\\osu-replay-viewer-continued\\osu-replay-viewer\\bin\\Debug\\net8.0\\osu-replay.mp4 -exp pp-counter"
+      "commandLineArgs": "--yes -ex -pr -R --view file \"C:\\Users\\shach\\Downloads\\solo-replay-osu_4843311_6755421816.osr\" -osz \"C:\\Users\\shach\\Downloads\\2247565 batta - chase.osz\" --config \"C:\\Users\\shach\\Desktop\\osu-replay-viewer-continued\\osu-replay-viewer\\bin\\Debug\\net8.0\\orv_config.json\" -O C:\\Users\\shach\\Desktop\\osu-replay-viewer-continued\\osu-replay-viewer\\bin\\Debug\\net8.0\\video.mp4 --skin import C:\\Users\\shach\\AppData\\Local\\SosuBot.ClientRenderer\\current\\d546e1e51450724f -exp pp-counter"
     }
   }
 }

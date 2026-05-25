@@ -1,4 +1,4 @@
-﻿using ManagedBass;
+using ManagedBass;
 using osu.Framework.Audio.Mixing;
 using osu.Framework.Audio.Sample;
 using System;
@@ -34,61 +34,98 @@ namespace osu_replay_renderer_netcore.Audio
             if (info.Channels < 1 || info.Length <= 0)
                 return null;
 
-            // BASS exposes either OriginalResolution or flags describing the stored sample depth.
-            var pcmBits = info.OriginalResolution > 0
-                ? info.OriginalResolution
-                : info.Flags.HasFlag(BassFlags.Float) ? 32
-                : info.Flags.HasFlag(BassFlags.Byte) ? 8
-                : 16;
+            bool isFloat = info.Flags.HasFlag(BassFlags.Float);
+            int pcmBits = detectPcmBits(info, isFloat);
+
+            if (pcmBits is not (8 or 16 or 24 or 32))
+                pcmBits = isFloat ? 32 : 16;
 
             var format = new AudioFormat
             {
                 Channels = info.Channels,
                 SampleRate = info.Frequency,
-                PCMSize = Math.Max(1, pcmBits / 8)
+                PCMSize = pcmBits / 8
             };
 
-            var bytesPerFrame = format.PCMSize * format.Channels;
-            var samples = info.Length / bytesPerFrame;
+            int bytesPerFrame = format.PCMSize * format.Channels;
+            if (bytesPerFrame <= 0)
+                return null;
 
-            var bytes = new byte[info.Length];
+            int totalLength = info.Length - (info.Length % bytesPerFrame);
+            if (totalLength <= 0)
+                return null;
+
+            int samples = totalLength / bytesPerFrame;
+            var bytes = new byte[totalLength];
+
             Bass.SampleGetData(SampleId, bytes);
 
             var buff = new AudioBuffer(format, samples);
-            var isFloat = info.Flags.HasFlag(BassFlags.Float);
 
             for (int i = 0; i < samples * format.Channels; i++)
             {
-                var offset = i * format.PCMSize;
-
-                buff.Data[i] = format.PCMSize switch
-                {
-                    1 => (bytes[offset] - 128) / 128f, // 8-bit PCM is unsigned
-                    2 => BitConverter.ToInt16(bytes, offset) / (float)short.MaxValue,
-                    3 => Read24Bit(bytes, offset),
-                    4 => isFloat
-                        ? BitConverter.ToSingle(bytes, offset)
-                        : BitConverter.ToInt32(bytes, offset) / (float)int.MaxValue,
-                    _ => 0f
-                };
+                int offset = i * format.PCMSize;
+                buff.Data[i] = decodeSample(bytes, offset, pcmBits, isFloat);
             }
 
             return buff;
-
-            static float Read24Bit(byte[] buffer, int offset)
-            {
-                const float pcm24MaxValue = 0x7FFFFF; // (1 << 23) - 1
-
-                var sample = buffer[offset]
-                            | (buffer[offset + 1] << 8)
-                            | (buffer[offset + 2] << 16);
-
-                // Sign-extend the 24-bit value to 32-bit int
-                if ((sample & 0x800000) != 0)
-                    sample |= unchecked((int)0xFF000000);
-
-                return sample / pcm24MaxValue;
-            }
         }
+
+        private static int detectPcmBits(SampleInfo info, bool isFloat)
+        {
+            if (info.OriginalResolution > 0)
+                return normalizeBits(info.OriginalResolution, isFloat);
+
+            if (isFloat)
+                return 32;
+
+            if (info.Flags.HasFlag(BassFlags.Byte))
+                return 8;
+
+            return 16;
+        }
+
+        private static int normalizeBits(int bits, bool isFloat)
+        {
+            if (bits <= 8)
+                return 8;
+            if (bits <= 16)
+                return 16;
+            if (bits <= 24)
+                return 24;
+            if (bits <= 32)
+                return 32;
+
+            return isFloat ? 32 : 16;
+        }
+
+        private static float decodeSample(byte[] buffer, int offset, int pcmBits, bool isFloat)
+        {
+            return pcmBits switch
+            {
+                8 => (buffer[offset] - 128) / 128f,
+                16 => BitConverter.ToInt16(buffer, offset) / 32768f,
+                24 => read24Bit(buffer, offset),
+                32 => isFloat
+                    ? clampSample(BitConverter.ToSingle(buffer, offset))
+                    : BitConverter.ToInt32(buffer, offset) / 2147483648f,
+                _ => 0f
+            };
+        }
+
+        private static float read24Bit(byte[] buffer, int offset)
+        {
+            int sample = buffer[offset]
+                        | (buffer[offset + 1] << 8)
+                        | (buffer[offset + 2] << 16);
+
+            if ((sample & 0x800000) != 0)
+                sample |= unchecked((int)0xFF000000);
+
+            return sample / 8388608f;
+        }
+
+        private static float clampSample(float value)
+            => Math.Clamp(value, -1f, 1f);
     }
 }

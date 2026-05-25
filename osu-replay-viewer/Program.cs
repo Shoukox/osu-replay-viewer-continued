@@ -13,6 +13,7 @@ using osu_replay_renderer_netcore.Audio.Conversion;
 using osu_replay_renderer_netcore.CustomHosts.CustomClocks;
 using osu_replay_renderer_netcore.CustomHosts.Record;
 using osu.Framework.Timing;
+using Newtonsoft.Json;
 
 namespace osu_replay_renderer_netcore
 {
@@ -237,16 +238,14 @@ namespace osu_replay_renderer_netcore
                     {
                         ClockPatcher.OnStopwatchClockSetAsSource += clock =>
                         {
-                            clock.ChangeSource(new WrappedClock(recordClock, clock.Source as StopwatchClock));
+                            if (clock.Source is IAdjustableClock originalClock)
+                            {
+                                clock.ChangeSource(new WrappedClock(recordClock, originalClock));
+                            }
                         };
                     }
 
-                    var resolutionArr = orvConfig.RecordOptions.Resolution.ToLower().Split('x').Select(x => int.Parse(x.Trim())).ToArray();
-                    var resolution = new Size
-                    {
-                        Width = resolutionArr[0],
-                        Height = resolutionArr[1]
-                    };
+                    var resolution = ParseResolutionOrThrow(orvConfig.RecordOptions.Resolution);
 
                     var config = new EncoderConfig
                     {
@@ -294,7 +293,14 @@ namespace osu_replay_renderer_netcore
 
                 if (applySkin.Triggered)
                 {
-                    game.SkinActionType = (SkinAction)Enum.Parse(typeof(SkinAction), applySkin[0][0].ToString().ToUpper() + applySkin[0].Substring(1));
+                    if (!Enum.TryParse<SkinAction>(applySkin[0], true, out var skinAction)) throw new CLIException
+                    {
+                        Cause = "Command-line Arguments (Parsing)",
+                        DisplayMessage = $"Unknown skin action: {applySkin[0]}",
+                        Suggestions = new[] { "Available skin actions: import/select/match/id" }
+                    };
+
+                    game.SkinActionType = skinAction;
                     game.Skin = applySkin[1];
                 }
 
@@ -405,9 +411,41 @@ namespace osu_replay_renderer_netcore
                 }
                 return;
             }
+            catch (Exception ex) when (ex is JsonException or InvalidDataException or UnauthorizedAccessException)
+            {
+                Console.WriteLine("Error while reading or writing config:");
+                Console.WriteLine($"  Message: {ex.Message}");
+                return;
+            }
 
-            host.Run(game);
-            host.Dispose();
+            try
+            {
+                host.Run(game);
+            }
+            finally
+            {
+                host.Dispose();
+            }
+        }
+
+        static Size ParseResolutionOrThrow(string str)
+        {
+            var parts = str?.ToLowerInvariant().Split('x');
+            if (parts?.Length != 2 ||
+                !int.TryParse(parts[0].Trim(), out int width) ||
+                !int.TryParse(parts[1].Trim(), out int height) ||
+                width <= 0 ||
+                height <= 0)
+            {
+                throw new CLIException
+                {
+                    Cause = "Config (record_options.resolution)",
+                    DisplayMessage = $"Invalid resolution: {str}",
+                    Suggestions = new[] { "Use WIDTHxHEIGHT, for example 1920x1080" }
+                };
+            }
+
+            return new Size(width, height);
         }
 
         static bool ParseBoolOrThrow(string str)

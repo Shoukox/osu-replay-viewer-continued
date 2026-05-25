@@ -87,29 +87,38 @@ namespace osu_replay_renderer_netcore.Audio.Conversion
             return buffer;
         }
 
-        public static void MuxAudioVideo(string videoPath, string audioPath, string outputPath)
+        public static bool MuxAudioVideo(string videoPath, string audioPath, string outputPath)
         {
-            var args = $"-y -i \"{videoPath}\" -i \"{audioPath}\" -c:v copy -c:a copy -map 0:v -map 1:a -shortest \"{outputPath}\"";
-            Console.WriteLine($"Starting FFmpeg muxing with arguments: {args}");
+            var args = new[] { "-y", "-i", videoPath, "-i", audioPath, "-c:v", "copy", "-c:a", "copy", "-map", "0:v", "-map", "1:a", "-shortest", outputPath };
+            Console.WriteLine($"Starting FFmpeg muxing with arguments: {string.Join(" ", args)}");
 
-            var ffmpeg = new Process
+            using var ffmpeg = new Process
             {
                 StartInfo =
                 {
                     UseShellExecute = false,
                     FileName = FFmpegExec,
-                    Arguments = args,
+                    RedirectStandardError = true,
                     CreateNoWindow = true
                 }
             };
 
+            foreach (var arg in args)
+                ffmpeg.StartInfo.ArgumentList.Add(arg);
+
             ffmpeg.Start();
+            string stderr = ffmpeg.StandardError.ReadToEnd();
             ffmpeg.WaitForExit();
             
             if (ffmpeg.ExitCode != 0)
             {
                 Console.Error.WriteLine("Failed to mux audio and video");
+                if (!string.IsNullOrWhiteSpace(stderr))
+                    Console.Error.WriteLine(stderr);
+                return false;
             }
+
+            return true;
         }
     }
 }

@@ -1,16 +1,8 @@
 ﻿using HarmonyLib;
-using osu.Framework.Audio.Sample;
-using osu.Framework.Audio.Track;
-using osu.Framework.Graphics.Audio;
-using osu.Game.Skinning;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Reflection;
-using System.Text;
-using System.Threading.Tasks;
 using osu.Framework.Bindables;
 using osu.Framework.Platform;
+using System;
+using System.Reflection;
 
 namespace osu_replay_renderer_netcore.Patching
 {
@@ -31,25 +23,34 @@ namespace osu_replay_renderer_netcore.Patching
             foreach (var window in windows)
             {
                 var windowType = typeof(IWindow).Assembly.GetType(window);
-                
-                var focusedMethod = windowType.GetMethod("get_Focused", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
-                Harmony.Patch(focusedMethod, postfix:(Delegate)SimpleReturnTrue);
-                
-                var visibleGetMethod = windowType.GetMethod("get_Visible", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
-                Harmony.Patch(visibleGetMethod, postfix:(Delegate)SimpleReturnTrue);
-                
-                var visibleSetMethod = windowType.GetMethod("set_Visible", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
-                Harmony.Patch(visibleSetMethod, prefix:(Delegate)CallOnlyWithFalse);
-                
-                var activeMethod = windowType.GetMethod("get_IsActive", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
-                Harmony.Patch(activeMethod, postfix:(Delegate)SimpleReturnBindableTrue);
-                
-                var raiseMethod = windowType.GetMethod("Raise", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
-                Harmony.Patch(raiseMethod, postfix:(Delegate)CallHide);
-                
-                var showMethod = windowType.GetMethod("Show", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
-                Harmony.Patch(showMethod, prefix:(Delegate)OverrideToHide);
+                if (windowType == null)
+                {
+                    Console.Error.WriteLine($"[WindowPatcher] Skipping missing type: {window}");
+                    continue;
+                }
+
+                Patch(windowType, "get_Focused", postfix: (Delegate)SimpleReturnTrue);
+                Patch(windowType, "get_Visible", postfix: (Delegate)SimpleReturnTrue);
+                Patch(windowType, "set_Visible", prefix: (Delegate)CallOnlyWithFalse);
+                Patch(windowType, "get_IsActive", postfix: (Delegate)SimpleReturnBindableTrue);
+                Patch(windowType, "Raise", postfix: (Delegate)CallHide);
+                Patch(windowType, "Show", prefix: (Delegate)OverrideToHide);
             }
+        }
+
+        private void Patch(Type type, string methodName, Delegate prefix = null, Delegate postfix = null)
+        {
+            var method = type.GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+            if (method == null)
+            {
+                Console.Error.WriteLine($"[WindowPatcher] Skipping missing method: {type.FullName}.{methodName}");
+                return;
+            }
+
+            Harmony.Patch(
+                method,
+                prefix == null ? null : new HarmonyMethod(prefix.Method),
+                postfix == null ? null : new HarmonyMethod(postfix.Method));
         }
 
         static bool OverrideToHide(IWindow __instance)

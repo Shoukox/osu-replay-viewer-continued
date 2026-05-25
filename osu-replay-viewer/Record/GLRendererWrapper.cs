@@ -13,12 +13,10 @@ namespace osu_replay_renderer_netcore.Record;
 public sealed class GLRendererWrapper : RenderWrapper
 {
     private static readonly Type GLRendererType =
-        typeof(IRenderer).Assembly.GetType("osu.Framework.Graphics.OpenGL.GLRenderer")
-        ?? throw new InvalidOperationException("GLRenderer type not found.");
+        typeof(IRenderer).Assembly.GetType("osu.Framework.Graphics.OpenGL.GLRenderer");
 
     private static readonly FieldInfo GLRendererOpenGLSurfaceField =
-        GLRendererType.GetField("openGLSurface", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)
-        ?? throw new InvalidOperationException("openGLSurface field not found.");
+        GLRendererType?.GetField("openGLSurface", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
 
     private static readonly object GlobalGlCaptureLock = new();
 
@@ -55,7 +53,7 @@ public sealed class GLRendererWrapper : RenderWrapper
 
     public static bool IsSupported(IRenderer renderer)
     {
-        return renderer.GetType() == GLRendererType;
+        return GLRendererType != null && GLRendererOpenGLSurfaceField != null && renderer.GetType() == GLRendererType;
     }
 
     public GLRendererWrapper(
@@ -65,10 +63,10 @@ public sealed class GLRendererWrapper : RenderWrapper
         ColorSpaceMode colorSpace)
         : base(desiredSize, pixelFormat, colorSpace)
     {
-        if (renderer.GetType() != GLRendererType)
+        if (GLRendererType == null || GLRendererOpenGLSurfaceField == null || renderer.GetType() != GLRendererType)
             throw new ArgumentException($"Not supported renderer: {renderer.GetType()}");
 
-        object? graphicsSurfaceObj = GLRendererOpenGLSurfaceField.GetValue(renderer);
+        object graphicsSurfaceObj = GLRendererOpenGLSurfaceField.GetValue(renderer);
 
         if (graphicsSurfaceObj is null)
             throw new InvalidOperationException("graphicsSurface is null.");

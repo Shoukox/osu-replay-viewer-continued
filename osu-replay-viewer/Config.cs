@@ -4,7 +4,6 @@ using System.IO;
 using Newtonsoft.Json.Converters;
 using osu_replay_renderer_netcore.CustomHosts;
 using osu_replay_renderer_netcore.CustomHosts.Record;
-using osu.Framework;
 
 namespace osu_replay_renderer_netcore;
 
@@ -25,6 +24,7 @@ public class GameSettings
     [JsonProperty("music_volume")] public double VolumeMusic = 0.6;
     [JsonProperty("effects_volume")] public double VolumeEffects = 0.6;
     [JsonProperty("master_volume")] public double VolumeMaster = 0.6;
+    [JsonProperty("cursor_size")] public double CursorSize = 1.0;
     [JsonProperty("scroll_speed")] public double ScrollSpeed = 25.0;
     [JsonProperty("scroll_direction")] public string ScrollDirection = "down";
 }
@@ -35,7 +35,7 @@ public class Config
     {
         [JsonProperty("fps")] public int FrameRate = 60;
         [JsonProperty("resolution")] public string Resolution = "1280x720";
-        [JsonProperty("renderer")] public GlRenderer Renderer = GlRenderer.Auto;
+        [JsonProperty("renderer")] public GlRenderer Renderer = GlRenderer.Legacy;
     }
     [JsonProperty("record_options")] public RecordOptionsObject RecordOptions = new();
     
@@ -45,7 +45,7 @@ public class Config
         [JsonProperty("libraries_path")] public string LibrariesPath = string.Empty;
         [JsonProperty("ffmpeg_executable")] public string Executable = "ffmpeg";
         [JsonProperty("video_encoder")] public string VideoEncoder = "h264_nvenc";
-        [JsonProperty("video_encoder_preset")] public string VideoEncoderPreset = "slow";
+        [JsonProperty("video_encoder_preset")] public string VideoEncoderPreset = "p1";
         [JsonProperty("video_encoder_bitrate")] public string VideoEncoderBitrate = "100M";
         
     }
@@ -53,7 +53,7 @@ public class Config
     
     public class OutputOptionsObject
     {
-        [JsonProperty("pixel_format")] public PixelFormatMode PixelFormat = PixelFormatMode.YUV420;
+        [JsonProperty("pixel_format")] public PixelFormatMode PixelFormat = PixelFormatMode.RGB;
         [JsonProperty("yuv_color_space")] public ColorSpaceMode ColorSpace = ColorSpaceMode.BT709;
     }
     [JsonProperty("output_options")] public OutputOptionsObject OutputOptions = new();
@@ -64,11 +64,12 @@ public class Config
 
     public static Config ReadFromFile(string file)
     {
-        Config res = null;
+        Config res;
         if (File.Exists(file))
         {
             var configText = File.ReadAllText(file);
-            res = JsonConvert.DeserializeObject<Config>(configText, new StringEnumConverter());
+            res = JsonConvert.DeserializeObject<Config>(configText, new StringEnumConverter())
+                  ?? throw new InvalidDataException($"Config file '{file}' did not contain a valid JSON object.");
         }
         else
         {
@@ -81,6 +82,10 @@ public class Config
 
     public void SaveToFile(string file)
     {
+        var directory = Path.GetDirectoryName(Path.GetFullPath(file));
+        if (!string.IsNullOrWhiteSpace(directory))
+            Directory.CreateDirectory(directory);
+
         var config = JsonConvert.SerializeObject(this, Formatting.Indented, new StringEnumConverter());
         File.WriteAllText(file, config);
     }

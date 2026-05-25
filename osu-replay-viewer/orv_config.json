@@ -1,6 +1,6 @@
 {
   "record_options": {
-    "fps": 60,
+    "fps": 120,
     "resolution": "1280x720",
     "renderer": "Auto"
   },

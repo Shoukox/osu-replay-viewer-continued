@@ -122,17 +122,29 @@ namespace osu_replay_renderer_netcore.CustomHosts
                 var audioPath = audioEncoder.OutputPath;
                 var tempOutput = videoPath + ".muxed.mp4";
                 
-                FFmpegAudioTools.MuxAudioVideo(videoPath, audioPath, tempOutput);
+                bool muxSucceeded = FFmpegAudioTools.MuxAudioVideo(videoPath, audioPath, tempOutput);
                 
-                if (File.Exists(tempOutput))
+                if (muxSucceeded && File.Exists(tempOutput))
                 {
-                    File.Delete(videoPath);
-                    File.Delete(audioPath);
+                    if (File.Exists(videoPath))
+                        File.Delete(videoPath);
+                    if (File.Exists(audioPath))
+                        File.Delete(audioPath);
                     File.Move(tempOutput, videoPath);
+                }
+                else
+                {
+                    Console.Error.WriteLine("Muxing failed; keeping original video/audio files for inspection.");
                 }
                 
                 sw.Stop();
                 Console.WriteLine($"Muxing done in {sw.ElapsedMilliseconds}ms");
+            }
+
+            if (_fpsContainer.Count == 0)
+            {
+                Console.WriteLine(FormattableString.Invariant($"Render finished in {timer.Elapsed:g}. No FPS samples were collected."));
+                return;
             }
 
             _fpsContainer.Sort();
@@ -357,10 +369,6 @@ namespace osu_replay_renderer_netcore.CustomHosts
 
         protected virtual void SetupHostInRender()
         {
-            Config.SetValue(FrameworkSetting.FrameSync, FrameSync.Unlimited);
-            Config.SetValue(FrameworkSetting.Renderer, RendererType.Direct3D11);
-            //Config.SetValue(FrameworkSetting.ExecutionMode, ExecutionMode.SingleThread);
-
             if (RuntimeInfo.IsApple)
             {
                 Config.SetValue(FrameworkSetting.WindowedSize, encoder.Config.Resolution / 2);

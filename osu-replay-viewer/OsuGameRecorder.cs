@@ -170,8 +170,9 @@ namespace osu_replay_renderer_netcore
                 try
                 {
                     File.Copy(beatmapSetPath, tmpFile);
+                    toImport = tmpFile;
                 }
-                catch (Exception e)
+                catch
                 {
                     Console.Error.WriteLine("Cannot copy beatmapset file to temp folder");
                     Exit();
@@ -357,7 +358,7 @@ namespace osu_replay_renderer_netcore
                         {
                             score = decoder.Parse(stream);
                         }
-                        catch (LegacyScoreDecoder.BeatmapNotFoundException e)
+                        catch (LegacyScoreDecoder.BeatmapNotFoundException)
                         {
                             Console.Error.WriteLine("Beatmap not found");
                             Console.Error.WriteLine(
@@ -425,6 +426,14 @@ namespace osu_replay_renderer_netcore
             Ruleset.Value = rulesetInfo;
 
             var beatmap = BeatmapManager.QueryBeatmap(beatmap => beatmap.ID == score.ScoreInfo.BeatmapInfo.ID);
+            if (beatmap == null)
+            {
+                Console.Error.WriteLine("Beatmap not found for replay: " + score.ScoreInfo.BeatmapInfo.ID);
+                Console.Error.WriteLine("Please make sure the beatmap is imported in your osu!lazer installation");
+                Exit();
+                return;
+            }
+
             var working = BeatmapManager.GetWorkingBeatmap(beatmap);
             working.LoadTrack();
             Beatmap.Value = working;
@@ -464,13 +473,15 @@ namespace osu_replay_renderer_netcore
                 }
 
                 SelectSkin(skin);
-                LocalConfig.GetBindable<bool>(OsuSetting.BeatmapColours).Value = settings.BeatmapColors;
-                LocalConfig.GetBindable<bool>(OsuSetting.BeatmapSkins).Value = settings.BeatmapSkin;
-                LocalConfig.GetBindable<bool>(OsuSetting.BeatmapHitsounds).Value = settings.BeatmapHitsounds;
-                LocalConfig.GetBindable<bool>(OsuSetting.ShowStoryboard).Value = settings.ShowStoryboard;
-                LocalConfig.GetBindable<double>(OsuSetting.DimLevel).Value = settings.BackgroundDim;
-                LocalConfig.GetBindable<bool>(OsuSetting.ShowFpsDisplay).Value = true;
             }
+
+            LocalConfig.GetBindable<bool>(OsuSetting.BeatmapColours).Value = settings.BeatmapColors;
+            LocalConfig.GetBindable<bool>(OsuSetting.BeatmapSkins).Value = settings.BeatmapSkin;
+            LocalConfig.GetBindable<bool>(OsuSetting.BeatmapHitsounds).Value = settings.BeatmapHitsounds;
+            LocalConfig.GetBindable<bool>(OsuSetting.ShowStoryboard).Value = settings.ShowStoryboard;
+            LocalConfig.GetBindable<double>(OsuSetting.DimLevel).Value = settings.BackgroundDim;
+            LocalConfig.GetBindable<bool>(OsuSetting.ShowFpsDisplay).Value = true;
+            LocalConfig.GetBindable<float>(OsuSetting.GameplayCursorSize).Value = (float)settings.CursorSize;
 
             if (Host is ReplayRecordGameHost recordHost && recordHost.NeedAudio)
             {
