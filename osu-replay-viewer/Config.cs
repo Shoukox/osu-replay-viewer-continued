@@ -42,7 +42,7 @@ public class Config
     public class FFmpegOptionsObject
     {
         [JsonProperty("mode")] public FFmpegMode Mode = FFmpegMode.Binding;
-        [JsonProperty("libraries_path")] public string LibrariesPath = string.Empty;
+        [JsonProperty("libraries_path")] public string LibrariesPath = "ffmpeg";
         [JsonProperty("ffmpeg_executable")] public string Executable = "ffmpeg";
         [JsonProperty("video_encoder")] public string VideoEncoder = "h264_nvenc";
         [JsonProperty("video_encoder_preset")] public string VideoEncoderPreset = "p1";

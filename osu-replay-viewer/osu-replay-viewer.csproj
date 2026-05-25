@@ -41,16 +41,6 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<!--Copy render config-->
-		<None Update="orv_config.json">
-			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-		</None>
-		<Content Include="orv_config.json">
-			<CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
-		</Content>
-	</ItemGroup>
-
-	<ItemGroup>
 		<None Update="Record\Shaders\**">
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 		</None>

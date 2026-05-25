@@ -109,6 +109,7 @@ namespace osu_replay_renderer_netcore.CustomHosts
             wrapper?.Finish(encoder);
             encoder.Finish();
             timer.Stop();
+            PrintFinalProgress();
 
             if (isAudioPatched && audioEncoder != null)
             {
@@ -419,6 +420,14 @@ namespace osu_replay_renderer_netcore.CustomHosts
         private long _lastFpsPrintTime;
         private ulong _lastFrameCount;
 
+        private void PrintFinalProgress()
+        {
+            double renderedSeconds = recordClock.CurrentTime / 1000d;
+            var renderedTime = TimeSpan.FromSeconds(renderedSeconds);
+            string renderedTimeText = FormattableString.Invariant($"{(int)renderedTime.TotalHours:00}:{renderedTime.Minutes:00}:{renderedTime.Seconds:00}.{renderedTime.Milliseconds / 10:00}");
+            Console.Error.WriteLine(FormattableString.Invariant($"Render progress: frame={recordClock.CurrentFrame} time={renderedTimeText} Progress: 100.00%"));
+        }
+
         private void PrintFps()
         {
             if (_lastFpsPrintTime + 1000 > timer.ElapsedMilliseconds)
@@ -434,7 +443,18 @@ namespace osu_replay_renderer_netcore.CustomHosts
 
             var fps = (double)diffFrames / (double)diffTime * 1000d;
             _fpsContainer.Add(fps);
+
+            double renderedSeconds = recordClock.CurrentTime / 1000d;
+            var renderedTime = TimeSpan.FromSeconds(renderedSeconds);
+            string renderedTimeText = FormattableString.Invariant($"{(int)renderedTime.TotalHours:00}:{renderedTime.Minutes:00}:{renderedTime.Seconds:00}.{renderedTime.Milliseconds / 10:00}");
+
             Console.WriteLine(FormattableString.Invariant($"Current fps: {fps:F2} (speed: {fps / encoder.Config.FPS:F2}x)"));
+
+            string percentText = audioTrack is { Duration: > 0 }
+                ? FormattableString.Invariant($" Progress: {Math.Clamp(renderedSeconds / audioTrack.Duration, 0d, 1d) * 100d:F2}%")
+                : string.Empty;
+
+            Console.Error.WriteLine(FormattableString.Invariant($"Render progress: frame={recordClock.CurrentFrame} time={renderedTimeText}{percentText} fps={fps:F2} speed={fps / encoder.Config.FPS:F2}x"));
         }
         
         private void OnDraw()
