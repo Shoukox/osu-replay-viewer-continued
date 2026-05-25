@@ -1,6 +1,7 @@
 using System;
 using System.Buffers;
 using System.Collections.Generic;
+using System.IO;
 using System.Runtime.InteropServices;
 using FFmpeg.AutoGen;
 
@@ -26,7 +27,11 @@ namespace osu_replay_renderer_netcore.CustomHosts.Record
         {
             if (!string.IsNullOrWhiteSpace(Config.FFmpegPath))
             {
-                ffmpeg.RootPath = Config.FFmpegPath;
+                string ffmpegPath = Path.IsPathRooted(Config.FFmpegPath)
+                    ? Config.FFmpegPath
+                    : Path.Combine(AppContext.BaseDirectory, Config.FFmpegPath);
+
+                ffmpeg.RootPath = ffmpegPath;
             }
         }
 

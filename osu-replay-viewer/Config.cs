@@ -47,6 +47,7 @@ public class Config
         [JsonProperty("video_encoder")] public string VideoEncoder = "h264_nvenc";
         [JsonProperty("video_encoder_preset")] public string VideoEncoderPreset = "p1";
         [JsonProperty("video_encoder_bitrate")] public string VideoEncoderBitrate = "100M";
+        [JsonProperty("use_cuda_if_possible")] public bool UseCudaIfPossible = true;
         
     }
     [JsonProperty("ffmpeg_options")] public FFmpegOptionsObject FFmpegOptions = new();

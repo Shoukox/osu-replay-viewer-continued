@@ -179,7 +179,11 @@ public sealed class GLRendererWrapper : RenderWrapper
         int[] oldViewport = new int[4];
         GL.GetInteger(GetPName.Viewport, oldViewport);
 
-        GL.GetInteger(GetPName.FramebufferBinding, out int oldFramebuffer);
+        GL.GetInteger(GetPName.ReadFramebufferBinding, out int oldReadFramebuffer);
+        GL.GetInteger(GetPName.DrawFramebufferBinding, out int oldDrawFramebuffer);
+        GL.GetInteger(GetPName.TextureBinding2D, out int oldTexture);
+        GL.GetInteger(GetPName.CurrentProgram, out int oldProgram);
+        GL.GetInteger(GetPName.ActiveTexture, out int oldActiveTexture);
 
         bool oldScissor = GL.IsEnabled(EnableCap.ScissorTest);
         bool oldBlend = GL.IsEnabled(EnableCap.Blend);
@@ -225,6 +229,13 @@ public sealed class GLRendererWrapper : RenderWrapper
             GL.DrawArrays(PrimitiveType.TriangleStrip, 0, 4);
             GL.BindVertexArray(0);
 
+            if (encoder is IOpenGLTextureEncoder textureEncoder && textureEncoder.AcceptsOpenGLTexture(PixelFormat))
+            {
+                GL.Flush();
+                textureEncoder.WriteOpenGLTexture(yuvTexture, DesiredSize.Width, yuvFboHeight, PixelFormat);
+                return;
+            }
+
             ReadToPboAndWriteOldestReady(
                 encoder,
                 DesiredSize.Width,
@@ -234,9 +245,12 @@ public sealed class GLRendererWrapper : RenderWrapper
         }
         finally
         {
-            GL.UseProgram(0);
-            GL.BindTexture(TextureTarget.Texture2D, 0);
-            GL.BindFramebuffer(FramebufferTarget.Framebuffer, oldFramebuffer);
+            GL.BindVertexArray(0);
+            GL.ActiveTexture((TextureUnit)oldActiveTexture);
+            GL.BindTexture(TextureTarget.Texture2D, oldTexture);
+            GL.UseProgram(oldProgram);
+            GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, oldReadFramebuffer);
+            GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, oldDrawFramebuffer);
             GL.Viewport(oldViewport[0], oldViewport[1], oldViewport[2], oldViewport[3]);
 
             RestoreCap(EnableCap.ScissorTest, oldScissor);
@@ -472,20 +486,26 @@ public sealed class GLRendererWrapper : RenderWrapper
 
         GL.BindBuffer(BufferTarget.PixelPackBuffer, currentPbo);
 
-        GL.PixelStore(PixelStoreParameter.PackAlignment, 1);
+        GL.GetInteger(GetPName.PackAlignment, out int oldPackAlignment);
 
-        GL.ReadPixels(
-            0,
-            0,
-            width,
-            height,
-            format,
-            PixelType.UnsignedByte,
-            IntPtr.Zero);
+        try
+        {
+            GL.PixelStore(PixelStoreParameter.PackAlignment, 1);
 
-        GL.PixelStore(PixelStoreParameter.PackAlignment, 4);
-
-        GL.BindBuffer(BufferTarget.PixelPackBuffer, 0);
+            GL.ReadPixels(
+                0,
+                0,
+                width,
+                height,
+                format,
+                PixelType.UnsignedByte,
+                IntPtr.Zero);
+        }
+        finally
+        {
+            GL.PixelStore(PixelStoreParameter.PackAlignment, oldPackAlignment);
+            GL.BindBuffer(BufferTarget.PixelPackBuffer, 0);
+        }
 
         pendingPbos.Enqueue(currentPbo);
 
