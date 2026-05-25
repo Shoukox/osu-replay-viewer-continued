@@ -41,12 +41,12 @@ public class Config
     
     public class FFmpegOptionsObject
     {
-        [JsonProperty("mode")] public FFmpegMode Mode = FFmpegMode.Pipe;
+        [JsonProperty("mode")] public FFmpegMode Mode = FFmpegMode.Binding;
         [JsonProperty("libraries_path")] public string LibrariesPath = string.Empty;
         [JsonProperty("ffmpeg_executable")] public string Executable = "ffmpeg";
         [JsonProperty("video_encoder")] public string VideoEncoder = "h264_nvenc";
         [JsonProperty("video_encoder_preset")] public string VideoEncoderPreset = "p1";
-        [JsonProperty("video_encoder_bitrate")] public string VideoEncoderBitrate = "100M";
+        [JsonProperty("video_encoder_bitrate")] public string VideoEncoderBitrate = "10M";
         [JsonProperty("use_cuda_if_possible")] public bool UseCudaIfPossible = true;
         
     }
