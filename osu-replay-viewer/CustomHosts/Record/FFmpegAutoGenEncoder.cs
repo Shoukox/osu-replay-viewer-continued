@@ -501,21 +501,22 @@ namespace osu_replay_renderer_netcore.CustomHosts.Record
                 dict["preset"] = Config.Preset;
             }
 
+            int cqr = 28;
             switch (Config.Encoder)
             {
                 case "h264_nvenc":
                     dict["rc"] = "constqp";
-                    dict["qp"] = "21";
+                    dict["qp"] = cqr.ToString();
                     break;
 
                 case "libx264":
-                    dict["crf"] = "21";
+                    dict["crf"] = cqr.ToString();
                     break;
 
                 case "h264_amf":
                 case "h264_qsv":
                 case "h264_videotoolbox":
-                    dict["crf"] = "21";
+                    dict["crf"] = cqr.ToString();
                     break;
             }
 

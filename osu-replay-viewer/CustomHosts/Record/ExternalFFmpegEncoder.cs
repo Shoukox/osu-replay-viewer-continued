@@ -50,16 +50,17 @@ namespace osu_replay_renderer_netcore.CustomHosts.Record
                     args.Add("vflip");
                 }
 
+                int cqr = 28;
                 switch (Config.Encoder)
                 {
                     case "h264_nvenc":
-                        args.AddRange(new[] { "-rc", "vbr", "-cq", "32", "-b:v", "0" });
+                        args.AddRange(new[] { "-rc", "vbr", "-cq", cqr.ToString(), "-b:v", "0" });
                         break;
                     case "libx264":
                     case "h264_amf":
                     case "h264_qsv":
                     case "h264_videotoolbox":
-                        args.AddRange(new[] { "-crf", "32" });
+                        args.AddRange(new[] { "-crf", cqr.ToString() });
                         break;
                 }
 
