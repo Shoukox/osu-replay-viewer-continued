@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Globalization;
 using System.Text;
 
 namespace osu_replay_renderer_netcore.CustomHosts.Record
@@ -39,7 +40,7 @@ namespace osu_replay_renderer_netcore.CustomHosts.Record
                     "-f", "rawvideo",
                     "-pix_fmt", pixFmt,
                     "-s", $"{Config.Resolution.Width}x{Config.Resolution.Height}",
-                    "-r", Config.FPS.ToString(),
+                    "-framerate", Config.FPS.ToString(CultureInfo.InvariantCulture),
                     "-i", "pipe:",
                     "-c:v", Config.Encoder
                 };
@@ -81,6 +82,21 @@ namespace osu_replay_renderer_netcore.CustomHosts.Record
 
                 if (!string.IsNullOrWhiteSpace(Config.Preset))
                     args.AddRange(new[] { "-preset", Config.Preset });
+
+                // The input is already a fixed-step stream. Make the output
+                // CFR contract explicit so no muxer/player is allowed to
+                // reinterpret the raw-video timestamps.
+                args.AddRange(new[]
+                {
+                    "-fps_mode", "cfr",
+                    "-r", Config.FPS.ToString(CultureInfo.InvariantCulture)
+                });
+
+                if (Path.GetExtension(Config.OutputPath).Equals(".mp4", StringComparison.OrdinalIgnoreCase) ||
+                    Path.GetExtension(Config.OutputPath).Equals(".mov", StringComparison.OrdinalIgnoreCase))
+                {
+                    args.AddRange(new[] { "-movflags", "+faststart" });
+                }
 
                 args.Add(Config.OutputPath);
                 return args;

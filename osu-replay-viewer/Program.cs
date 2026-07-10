@@ -232,6 +232,16 @@ namespace osu_replay_renderer_netcore
                 if (recordMode.Triggered)
                 {
                     if (!CLIUtils.AskFileDelete(alwaysYes.Triggered, recordOutput[0])) return;
+
+                    var resolution = ParseResolutionOrThrow(orvConfig.RecordOptions.Resolution);
+                    FFmpegRuntimeInfo ffmpegRuntime = FFmpegRuntimeResolver.Resolve(orvConfig.FFmpegOptions, resolution);
+                    if (orvConfig.FFmpegOptions.Mode != ffmpegRuntime.Mode)
+                    {
+                        orvConfig.FFmpegOptions.Mode = ffmpegRuntime.Mode;
+                        orvConfig.FFmpegOptions.LibrariesPath = ffmpegRuntime.LibrariesPath ?? "";
+                        orvConfig.SaveToFile(orvConfigPath[0]);
+                        Console.WriteLine("[FFmpeg] Updated the config backend for this operating system.");
+                    }
                     
                     var recordClock = new RecordClock(orvConfig.RecordOptions.FrameRate);
                     if (patched)
@@ -245,35 +255,30 @@ namespace osu_replay_renderer_netcore
                         };
                     }
 
-                    var resolution = ParseResolutionOrThrow(orvConfig.RecordOptions.Resolution);
-
                     var config = new EncoderConfig
                     {
                         FPS = orvConfig.RecordOptions.FrameRate,
                         Resolution = resolution,
                         OutputPath = recordOutput[0],
-                        Preset = orvConfig.FFmpegOptions.VideoEncoderPreset,
-                        Encoder = orvConfig.FFmpegOptions.VideoEncoder,
+                        Preset = ffmpegRuntime.Preset,
+                        Encoder = ffmpegRuntime.Encoder,
                         Bitrate = orvConfig.FFmpegOptions.VideoEncoderBitrate,
 
                         // External only
-                        FFmpegExec = orvConfig.FFmpegOptions.Executable,
+                        FFmpegExec = ffmpegRuntime.Executable,
                         PixelFormat = orvConfig.OutputOptions.PixelFormat,
                         ColorSpace = orvConfig.OutputOptions.ColorSpace,
                     };
 
                     Console.WriteLine($"[Encoder] Pixel format: {config.PixelFormat}, Color space: {config.ColorSpace}");
                     
-                    FFmpegAudioTools.FFmpegExec = orvConfig.FFmpegOptions.Executable;
+                    FFmpegAudioTools.FFmpegExec = ffmpegRuntime.Executable;
 
-                    if (!string.IsNullOrWhiteSpace(orvConfig.FFmpegOptions.LibrariesPath))
-                    {
-                        config.FFmpegPath = orvConfig.FFmpegOptions.LibrariesPath;
-                    }
+                    config.FFmpegPath = ffmpegRuntime.LibrariesPath ?? "";
 
                     EncoderBase encoder;
 
-                    if (ShouldUseNvidiaGpuEncoder(orvConfig, config))
+                    if (ShouldUseNvidiaGpuEncoder(orvConfig, config, ffmpegRuntime.Mode))
                     {
                         if (config.PixelFormat != PixelFormatMode.NV12)
                         {
@@ -285,12 +290,21 @@ namespace osu_replay_renderer_netcore
                     }
                     else
                     {
-                        encoder = orvConfig.FFmpegOptions.Mode switch
+                        switch (ffmpegRuntime.Mode)
                         {
-                            FFmpegMode.Pipe => new ExternalFFmpegEncoder(config),
-                            FFmpegMode.Binding => new FFmpegAutoGenEncoder(config),
-                            _ => throw new ArgumentOutOfRangeException("FFmpeg mode")
-                        };
+                            case FFmpegMode.Pipe:
+                                encoder = new ExternalFFmpegEncoder(config);
+                                break;
+                            case FFmpegMode.Binding when OperatingSystem.IsLinux():
+                                Console.WriteLine("[Encoder] Using the FFmpeg process backend on Linux; the bundled FFmpeg binding is Windows-only.");
+                                encoder = new ExternalFFmpegEncoder(config);
+                                break;
+                            case FFmpegMode.Binding:
+                                encoder = new FFmpegAutoGenEncoder(config);
+                                break;
+                            default:
+                                throw new ArgumentOutOfRangeException("FFmpeg mode");
+                        }
                     }
 
                     host = new ReplayRecordGameHost(gameName, encoder, recordClock, orvConfig.RecordOptions.Renderer, patched, orvConfig.GameSettings);
@@ -426,7 +440,7 @@ namespace osu_replay_renderer_netcore
                 }
                 return;
             }
-            catch (Exception ex) when (ex is JsonException or InvalidDataException or UnauthorizedAccessException)
+            catch (Exception ex) when (ex is JsonException or InvalidDataException or UnauthorizedAccessException or InvalidOperationException)
             {
                 Console.WriteLine("Error while reading or writing config:");
                 Console.WriteLine($"  Message: {ex.Message}");
@@ -495,9 +509,12 @@ namespace osu_replay_renderer_netcore
             return CanApplyPatch() && args.Any(arg => arg.Equals("--record") || arg.Equals("-R"));
         }
 
-        private static bool ShouldUseNvidiaGpuEncoder(Config config, EncoderConfig encoderConfig)
+        private static bool ShouldUseNvidiaGpuEncoder(Config config, EncoderConfig encoderConfig, FFmpegMode mode)
         {
-            if (config.FFmpegOptions.Mode != FFmpegMode.Binding)
+            if (OperatingSystem.IsLinux())
+                return false;
+
+            if (mode != FFmpegMode.Binding)
                 return false;
 
             if (!config.FFmpegOptions.UseCudaIfPossible)

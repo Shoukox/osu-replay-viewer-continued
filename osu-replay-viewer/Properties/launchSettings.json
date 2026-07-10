@@ -2,7 +2,7 @@
   "profiles": {
     "osu-replay-renderer-netcore": {
       "commandName": "Project",
-      "commandLineArgs": "--yes -ex -pr -R --view file \"C:\\Users\\shach\\Downloads\\guesto_Jeff_Williams_feat_Casey_Lee_Williams_Time_to_Say_Goodbye.osr\" -osz \"C:\\Users\\shach\\Downloads\\2425547 Jeff Williams feat. Casey Lee Williams - Time to Say Goodbye (TV Size).osz\" --config \"C:\\Users\\shach\\Desktop\\osu-replay-viewer-continued\\osu-replay-viewer\\bin\\Debug\\net8.0\\orv_config.json\" -O C:\\Users\\shach\\Desktop\\osu-replay-viewer-continued\\osu-replay-viewer\\bin\\Debug\\net8.0\\video.mp4 --skin import C:\\Users\\shach\\AppData\\Local\\SosuBot.ClientRenderer\\current\\d546e1e51450724f -exp pp-counter -exp strain-graph"
+      "commandLineArgs": "--yes -ex -pr -R --view file /home/shoukko/Downloads/solo-replay-mania_4610730_6653395731.osr -osz \"/home/shoukko/Downloads/2182214 ANGUISH, EXILED & elfass - Gulyayu (Sped Up Ver.).osz\" --config /home/shoukko/Desktop/osu-replay-viewer-continued/osu-replay-viewer/bin/Release/net8.0/orv_config.json -O /home/shoukko/Desktop/osu-replay-viewer-continued/osu-replay-viewer/bin/Release/net8.0/video.mp4 --skin import /home/shoukko/Downloads/#_tekkito2_ft_jb_the_voice_tu_perfume_a_chanel_Unknown_4.osk -exp pp-counter --preserve"
     }
   }
 }

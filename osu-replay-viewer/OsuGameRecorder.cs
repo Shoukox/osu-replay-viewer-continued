@@ -420,8 +420,8 @@ namespace osu_replay_renderer_netcore
             Audio.Balance.Value = 0;
             
             ScreenStack = new RecorderScreenStack();
-            LoadComponent(ScreenStack);
             Add(ScreenStack);
+            LoadComponent(ScreenStack);
             
             var rulesetInfo = score.ScoreInfo.Ruleset;
             Ruleset.Value = rulesetInfo;
@@ -520,13 +520,34 @@ namespace osu_replay_renderer_netcore
             {
                 sw.Stop();
                 Console.WriteLine($"Player loaded in {sw.ElapsedMilliseconds}ms");
+            };
+            loader.OnEntered += () =>
+            {
                 if (Host is ReplayRecordGameHost record)
                 {
                     record.StartRecording();
                 }
             };
-            ScreenStack.Push(loader);
             ScreenStack.ScreenPushed += ScreenStack_ScreenPushed;
+
+            // The custom stack is added to the game immediately before this
+            // method is called, but its dependency lease may still be loading.
+            // Delay the push until the stack is fully loaded; otherwise
+            // OsuScreenStack defers dependency creation and PlayerLoader can
+            // reach Update() before its beatmap background exists (reproducible
+            // on Linux/SDL3).
+            void PushLoaderWhenReady()
+            {
+                if (!ScreenStack.IsLoaded)
+                {
+                    Scheduler.Add(PushLoaderWhenReady, true);
+                    return;
+                }
+
+                ScreenStack.Push(loader);
+            }
+
+            Scheduler.Add(PushLoaderWhenReady, true);
 
             var configMgr = configCache.GetConfigFor(Ruleset.Value.CreateInstance());
             if (configMgr is OsuRulesetConfigManager osuMgr)

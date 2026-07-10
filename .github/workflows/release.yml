@@ -1,64 +1,153 @@
-﻿name: Build and Release
+name: Build and publish release
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches:
+      - master
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version, for example v1.2.3"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}-${{ github.event_name == 'workflow_dispatch' && inputs.version || github.sha }}
+  cancel-in-progress: false
 
 jobs:
-  build:
-    strategy:
-      matrix:
-        runtime: [win-x64, win-arm64, linux-x64, linux-arm64, osx-x64, osx-arm64]
-        config: [Debug, Release]
+  prepare:
+    name: Resolve release metadata
     runs-on: ubuntu-latest
+    outputs:
+      should_release: ${{ steps.metadata.outputs.should_release }}
+      version: ${{ steps.metadata.outputs.version }}
+      commit: ${{ steps.metadata.outputs.commit }}
+      prerelease: ${{ steps.metadata.outputs.prerelease }}
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          submodules: 'recursive'
+          fetch-depth: 1
 
-      - name: Setup .NET 8
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: 8.x
-
-      - name: Build and Publish
+      - name: Read release marker
+        id: metadata
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          INPUT_VERSION: ${{ inputs.version }}
+        shell: bash
         run: |
-          dotnet publish -c ${{ matrix.config }} -r ${{ matrix.runtime }} --self-contained true -o publish
+          set -euo pipefail
 
-      - name: Archive Release
-        run: |
-          if [[ "${{ matrix.runtime }}" == *win-* || "${{ matrix.runtime }}" == *osx-* ]]; then
-            cd publish && zip -r "../app-${{ matrix.config }}-${{ matrix.runtime }}.zip" .
-          else
-            tar -czf "app-${{ matrix.config }}-${{ matrix.runtime }}.tar.gz" -C publish .
+          version=""
+          commit="$(git rev-parse HEAD)"
+
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            version="$INPUT_VERSION"
+          elif [[ "$EVENT_NAME" == "push" && "$REF_NAME" == "master" ]]; then
+            subject="$(git log -1 --format=%s)"
+
+            # A release is intentionally opt-in. Ordinary commits only run
+            # this inexpensive metadata job and do not publish anything.
+            if [[ "$subject" =~ ^release:[[:space:]]*(v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?)$ ]]; then
+              version="${BASH_REMATCH[1]}"
+            fi
           fi
 
-      - name: Upload artifact
+          if [[ -z "$version" ]]; then
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+            echo "No release marker found; skipping package build."
+            exit 0
+          fi
+
+          if [[ ! "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid release version '$version'. Use vMAJOR.MINOR.PATCH, optionally with a prerelease suffix." >&2
+            exit 1
+          fi
+
+          prerelease=false
+          if [[ "$version" == *-* ]]; then
+            prerelease=true
+          fi
+
+          {
+            echo "should_release=true"
+            echo "version=$version"
+            echo "commit=$commit"
+            echo "prerelease=$prerelease"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "Preparing release $version from commit $commit"
+
+  build:
+    name: Package ${{ matrix.runtime }}
+    needs: prepare
+    if: needs.prepare.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        runtime:
+          - win-x64
+          - linux-x64
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.commit }}
+          submodules: recursive
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Build self-contained package
+        run: |
+          bash scripts/package-release.sh \
+            "${{ matrix.runtime }}" \
+            "${{ needs.prepare.outputs.version }}"
+
+      - name: Upload package
         uses: actions/upload-artifact@v4
         with:
-          name: app-${{ matrix.config }}-${{ matrix.runtime }}
-          path: app-${{ matrix.config }}-${{ matrix.runtime }}.*
+          name: osu-replay-viewer-${{ needs.prepare.outputs.version }}-${{ matrix.runtime }}
+          path: |
+            .release/osu-replay-viewer-${{ needs.prepare.outputs.version }}-${{ matrix.runtime }}.*
+          if-no-files-found: error
+          retention-days: 7
 
-  create-release:
-    needs: build
+  publish:
+    name: Create GitHub Release
+    needs:
+      - prepare
+      - build
+    if: needs.prepare.outputs.should_release == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - name: Download all artifacts
+      - name: Download packages
         uses: actions/download-artifact@v4
         with:
-          path: artifacts
+          path: release-assets
+          merge-multiple: true
 
-      - name: Create Release
+      - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ needs.prepare.outputs.version }}
+          target_commitish: ${{ needs.prepare.outputs.commit }}
+          name: osu-replay-viewer ${{ needs.prepare.outputs.version }}
           generate_release_notes: true
-          draft: false
-          prerelease: false
-          files: |
-            artifacts/**/*
+          prerelease: ${{ needs.prepare.outputs.prerelease }}
+          fail_on_unmatched_files: true
+          files: release-assets/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

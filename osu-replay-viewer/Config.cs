@@ -1,4 +1,5 @@
-﻿using System.Drawing;
+﻿using System;
+using System.Drawing;
 using Newtonsoft.Json;
 using System.IO;
 using Newtonsoft.Json.Converters;
@@ -31,8 +32,13 @@ public class GameSettings
 
 public class Config
 {
+    // Zero means that the field was not present in a pre-bootstrap config.
+    // New instances are upgraded to the current version by ReadFromFile().
+    [JsonProperty("config_version")] public int Version;
+
     public class RecordOptionsObject
     {
+        // 60 fps is the practical default; higher values remain opt-in.
         [JsonProperty("fps")] public int FrameRate = 60;
         [JsonProperty("resolution")] public string Resolution = "1280x720";
         [JsonProperty("renderer")] public GlRenderer Renderer = GlRenderer.Legacy;
@@ -41,11 +47,19 @@ public class Config
     
     public class FFmpegOptionsObject
     {
-        [JsonProperty("mode")] public FFmpegMode Mode = FFmpegMode.Binding;
-        [JsonProperty("libraries_path")] public string LibrariesPath = "ffmpeg";
-        [JsonProperty("ffmpeg_executable")] public string Executable = "ffmpeg";
-        [JsonProperty("video_encoder")] public string VideoEncoder = "h264_nvenc";
-        [JsonProperty("video_encoder_preset")] public string VideoEncoderPreset = "p1";
+        // Pipe is portable and does not depend on FFmpeg.AutoGen's legacy
+        // native library names. Binding remains available for old Windows
+        // installations that explicitly keep the compatible libraries.
+        [JsonProperty("mode")] public FFmpegMode Mode = FFmpegMode.Pipe;
+        [JsonProperty("libraries_path")] public string LibrariesPath = "";
+        [JsonProperty("ffmpeg_executable")] public string Executable = "auto";
+        [JsonProperty("auto_download")] public bool AutoDownload = true;
+        [JsonProperty("prefer_system")] public bool PreferSystem = true;
+        [JsonProperty("download_version")] public string DownloadVersion = "n8.1";
+        [JsonProperty("cache_directory")] public string CacheDirectory = "";
+        [JsonProperty("allow_encoder_fallback")] public bool AllowEncoderFallback = true;
+        [JsonProperty("video_encoder")] public string VideoEncoder = "auto";
+        [JsonProperty("video_encoder_preset")] public string VideoEncoderPreset = "auto";
         [JsonProperty("video_encoder_bitrate")] public string VideoEncoderBitrate = "10M";
         [JsonProperty("use_cuda_if_possible")] public bool UseCudaIfPossible = true;
         
@@ -76,9 +90,36 @@ public class Config
         {
             res = new Config();
         }
+
+        res.MigrateLegacyConfig();
         
         res.SaveToFile(file); // update schema
         return res;
+    }
+
+    private void MigrateLegacyConfig()
+    {
+        FFmpegOptions ??= new FFmpegOptionsObject();
+
+        if (Version >= 2)
+            return;
+
+        // Old configs selected the native binding by default. It is tied to
+        // the checked-in Windows FFmpeg 4.x DLLs and cannot work with the
+        // downloaded cross-platform FFmpeg builds.
+        if (!OperatingSystem.IsWindows() && FFmpegOptions.Mode == FFmpegMode.Binding)
+        {
+            FFmpegOptions.Mode = FFmpegMode.Pipe;
+            FFmpegOptions.LibrariesPath = "";
+        }
+
+        if (string.Equals(FFmpegOptions.Executable, "ffmpeg", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(FFmpegOptions.Executable, "ffmpeg.exe", StringComparison.OrdinalIgnoreCase))
+        {
+            FFmpegOptions.Executable = "auto";
+        }
+
+        Version = 2;
     }
 
     public void SaveToFile(string file)

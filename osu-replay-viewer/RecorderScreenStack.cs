@@ -1,10 +1,7 @@
-﻿using osu.Game.Graphics.Containers;
+﻿using osu.Framework.Allocation;
+using osu.Framework.Graphics;
+using osu.Game.Graphics.Containers;
 using osu.Game.Screens;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace osu_replay_renderer_netcore
 {
@@ -17,6 +14,13 @@ namespace osu_replay_renderer_netcore
 
         public RecorderScreenStack() : base()
         {}
+
+        protected override IReadOnlyDependencyContainer CreateChildDependencies(IReadOnlyDependencyContainer parent)
+        {
+            var dependencies = new DependencyContainer(base.CreateChildDependencies(parent));
+            dependencies.CacheAs<BackgroundScreenStack>((InternalChildren[0] as ParallaxContainer).Children[0] as BackgroundScreenStack);
+            return dependencies;
+        }
 
         protected override void LoadComplete() { Parallax = 0.0f; }
     }

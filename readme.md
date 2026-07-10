@@ -17,7 +17,7 @@ to upgrade to make UI matches with actual game
 ## Features
 - View downloaded replays (now with custom skins support)
 - Download replays (if you can log in)
-- Render replays to video file (FFmpeg required)
+- Render replays to video file (FFmpeg is bootstrapped automatically when needed)
 
 ## Basic Usage
 - [ ] TODO
@@ -25,17 +25,63 @@ to upgrade to make UI matches with actual game
 ## Requirements
 - [.NET 8.0](https://dotnet.microsoft.com/download/dotnet/8.0)
 - OpenGL ES 3.0 compatible device
-- FFmpeg installed
+- Internet access on the first recording run, unless FFmpeg is already installed
 
-## Installing FFmpeg
-1. Grab FFmpeg binaries [here](https://www.ffmpeg.org/download.html)
-  > Linux and MacOS users can also install FFmpeg from package manager included in their distribution
+## FFmpeg bootstrap
+When recording, the application looks for FFmpeg in this order:
 
-  > Windows users can download FFmpeg [here](https://www.gyan.dev/ffmpeg/builds/) or
-    [here](https://github.com/BtbN/FFmpeg-Builds/releases)
+1. The executable configured in `ffmpeg_options.ffmpeg_executable`.
+2. The system `PATH` (preferred by default).
+3. An application-local `ffmpeg` directory.
+4. The per-user FFmpeg cache.
 
-2. Include ``ffmpeg`` in command line path
-3. Confirm that it's working by running ``ffmpeg`` alone
+If no usable executable is found, a GPL FFmpeg 8.1 build is downloaded and verified
+with SHA-256 checksums. Windows and Linux x64/arm64 builds are downloaded from
+[BtbN FFmpeg Builds](https://github.com/BtbN/FFmpeg-Builds/releases); macOS Intel
+uses the [evermeet.cx build](https://evermeet.cx/ffmpeg/). macOS ARM and other
+architectures require a system FFmpeg or a manually configured executable.
+
+The default backend is the portable FFmpeg process (`Pipe`). The legacy native
+`Binding` backend remains available for compatible Windows installations with the
+checked-in FFmpeg libraries, but is automatically replaced by `Pipe` on unsupported
+operating systems.
+
+The resolved encoder is selected from the capabilities of the actual FFmpeg binary:
+hardware H.264 encoders are preferred when available, with `libx264` as the fallback.
+Set `use_cuda_if_possible` to `false` to skip NVIDIA NVENC detection.
+
+The default is 60 FPS, which is usually the best balance between smooth motion
+and render time. Higher values such as 120 or 240 FPS remain available when the
+GPU and CPU have enough headroom.
+
+The relevant config section is generated and migrated automatically:
+
+```json
+{
+  "record_options": {
+  "fps": 60,
+  "resolution": "1280x720",
+  "renderer": "Legacy"
+  },
+  "ffmpeg_options": {
+  "mode": "Pipe",
+  "libraries_path": "",
+  "ffmpeg_executable": "auto",
+  "auto_download": true,
+  "prefer_system": true,
+  "download_version": "n8.1",
+  "cache_directory": "",
+  "allow_encoder_fallback": true,
+  "video_encoder": "auto",
+  "video_encoder_preset": "auto",
+  "video_encoder_bitrate": "10M",
+  "use_cuda_if_possible": true
+  }
+}
+```
+
+Set `auto_download` to `false` to require a preinstalled FFmpeg. `cache_directory`
+can point to a custom per-user cache location; leave it empty for the OS default.
 
 > For the best encoding speed, you can install FFmpeg with hardware acceleration. To actually use
   hardware acceleration, see [hardware acceleration](#hardware-acceleration)
@@ -131,6 +177,36 @@ To build this project, you need:
 - Git
 
 Clone this repository (``git clone``), then build it with ``dotnet build -c Release`` command.
+
+## Releases through GitHub Actions
+
+The repository publishes only `win-x64` and `linux-x64` Release packages. A
+normal commit does not create a release. To publish a version, make a commit
+whose subject is exactly in this form:
+
+```text
+release: v1.2.3
+```
+
+Then push it to `master`:
+
+```bash
+git add .
+git commit -m "release: v1.2.3"
+git push origin master
+```
+
+GitHub Actions detects the marker, builds self-contained packages, and creates
+the `v1.2.3` GitHub Release attached to that commit. The release contains:
+
+- `osu-replay-viewer-v1.2.3-win-x64.zip`;
+- `osu-replay-viewer-v1.2.3-linux-x64.tar.gz`;
+- a SHA-256 checksum file for each package.
+
+The Linux archive does not contain the legacy Windows FFmpeg DLLs; the
+application downloads a compatible FFmpeg build automatically on first use.
+For a release without creating a marker commit, use **Actions → Build and
+publish release → Run workflow** and enter a version such as `v1.2.3`.
 
 You can also build and run directly, using ``dotnet run osu-replay-viewer``
 

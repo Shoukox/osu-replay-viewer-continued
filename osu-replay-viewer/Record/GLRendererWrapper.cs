@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
 using System.Reflection;
+using System.Threading;
 
 namespace osu_replay_renderer_netcore.Record;
 
@@ -519,30 +520,92 @@ public sealed class GLRendererWrapper : RenderWrapper
 
     private unsafe void WriteOldestPendingPbo(EncoderBase encoder, int size)
     {
-        int pbo = pendingPbos.Dequeue();
+        if (pendingPbos.Count == 0)
+            return;
+
+        // Do not remove the PBO from the queue until its contents have been
+        // copied successfully. This matters when the GPU has not finished the
+        // asynchronous readback yet.
+        int pbo = pendingPbos.Peek();
 
         GL.BindBuffer(BufferTarget.PixelPackBuffer, pbo);
 
-        IntPtr dataPtr = GL.MapBufferRange(
-            BufferTarget.PixelPackBuffer,
-            IntPtr.Zero,
-            size,
-            BufferAccessMask.MapReadBit);
-
-        if (dataPtr != IntPtr.Zero)
+        try
         {
+            IntPtr dataPtr = IntPtr.Zero;
+
+            // MapBufferRange normally waits for the readback to complete. A
+            // few drivers can still return NULL while the PBO command is in
+            // flight, especially during the final frame drain, so retry after
+            // an explicit GPU barrier before using the slower synchronous
+            // desktop-OpenGL fallback below.
+            for (int attempt = 0; attempt < 3 && dataPtr == IntPtr.Zero; attempt++)
+            {
+                dataPtr = GL.MapBufferRange(
+                    BufferTarget.PixelPackBuffer,
+                    IntPtr.Zero,
+                    size,
+                    BufferAccessMask.MapReadBit);
+
+                if (dataPtr == IntPtr.Zero)
+                {
+                    GL.Finish();
+                    Thread.Yield();
+                }
+            }
+
+            if (dataPtr != IntPtr.Zero)
+            {
+                pendingPbos.Dequeue();
+
+                try
+                {
+                    var span = new ReadOnlySpan<byte>(dataPtr.ToPointer(), size);
+                    encoder.WriteFrame(span);
+                }
+                finally
+                {
+                    GL.UnmapBuffer(BufferTarget.PixelPackBuffer);
+                }
+
+                return;
+            }
+
+            // osuTK's ES30 bindings do not expose glGetBufferSubData, while
+            // this recorder runs on a desktop OpenGL context. Reading the PBO
+            // through the desktop binding gives us a reliable last resort
+            // after GL.Finish() and avoids losing/crashing the final frames.
+            GL.Finish();
+            byte[] readback = new byte[size];
+
             try
             {
-                var span = new ReadOnlySpan<byte>(dataPtr.ToPointer(), size);
-                encoder.WriteFrame(span);
+                osuTK.Graphics.OpenGL.GL.GetBufferSubData(
+                    osuTK.Graphics.OpenGL.BufferTarget.PixelPackBuffer,
+                    IntPtr.Zero,
+                    size,
+                    readback);
             }
-            finally
+            catch (Exception fallbackException)
             {
-                GL.UnmapBuffer(BufferTarget.PixelPackBuffer);
+                // A driver may expose only the ES bindings used by osu! and
+                // not initialise osuTK's desktop binding. Do not turn a
+                // failed tail readback into an unhandled game exception; the
+                // encoder can still finish a valid CFR stream without this
+                // one pending frame.
+                pendingPbos.Dequeue();
+                Console.Error.WriteLine(
+                    $"[OpenGL] Could not read the capture PBO after waiting; skipping one frame: {fallbackException.Message}");
+                return;
             }
-        }
 
-        GL.BindBuffer(BufferTarget.PixelPackBuffer, 0);
+            pendingPbos.Dequeue();
+            encoder.WriteFrame(readback);
+        }
+        finally
+        {
+            GL.BindBuffer(BufferTarget.PixelPackBuffer, 0);
+        }
     }
 
     private void InitializePBOs(int size)
@@ -584,6 +647,12 @@ public sealed class GLRendererWrapper : RenderWrapper
 
         WithGLContext(() =>
         {
+            // Finish all outstanding glReadPixels commands before draining
+            // the PBO queue. The normal path is intentionally asynchronous,
+            // but there is no reason to leave GPU work in flight at shutdown.
+            if (pboInitialized)
+                GL.Finish();
+
             while (pboInitialized && pendingPbos.Count > 0)
                 WriteOldestPendingPbo(encoder, pboSize);
 

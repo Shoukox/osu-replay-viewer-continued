@@ -31,7 +31,8 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<!--Copy ffmpeg and its libraries-->
+		<!--Keep the checked-in Windows FFmpeg 4.x files for the legacy Binding backend.
+		     New installations use FFmpegRuntimeResolver and the portable Pipe backend.-->
 		<None Update="ffmpeg\**\*.*">
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 		</None>

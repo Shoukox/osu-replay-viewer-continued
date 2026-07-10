@@ -372,19 +372,50 @@ namespace osu_replay_renderer_netcore.CustomHosts
             MaximumUpdateHz = recordClock.FramesPerSecond;
             MaximumInactiveHz = recordClock.FramesPerSecond;
         }
+
+        protected override void SetupConfig(IDictionary<FrameworkSetting, object> defaultOverrides)
+        {
+            // Update and draw must observe the same fixed RecordClock step.
+            // Multi-threaded scheduling can let the renderer get ahead of the
+            // gameplay tree and make an otherwise CFR video look uneven.
+            defaultOverrides[FrameworkSetting.FrameSync] = FrameSync.Unlimited;
+            defaultOverrides[FrameworkSetting.ExecutionMode] = ExecutionMode.SingleThread;
+
+            base.SetupConfig(defaultOverrides);
+
+            ConfigureRecordingWindow();
+        }
+
         private bool setupHostInRender = false;
 
         protected virtual void SetupHostInRender()
         {
+            // SDL3 reports the drawable size in physical pixels while the window
+            // configuration is expressed in logical pixels. On HiDPI Linux this
+            // otherwise makes a 1280x720 capture surface appear as 1600x900.
+            // Recording must not be paced by the desktop compositor or VSync;
+            // the fixed RecordClock is the only source of video frame timing.
+            Config.SetValue(FrameworkSetting.FrameSync, FrameSync.Unlimited);
+            Config.SetValue(FrameworkSetting.ExecutionMode, ExecutionMode.SingleThread);
+            ConfigureRecordingWindow(accountForWindowScale: true);
+        }
+
+        private void ConfigureRecordingWindow(bool accountForWindowScale = false)
+        {
+            Size windowSize = encoder.Config.Resolution;
+
             if (RuntimeInfo.IsApple)
             {
-                Config.SetValue(FrameworkSetting.WindowedSize, encoder.Config.Resolution / 2);
+                windowSize /= 2;
             }
-            else
+            else if (accountForWindowScale && Window is { Scale: > 1 } window)
             {
-                Config.SetValue(FrameworkSetting.WindowedSize, encoder.Config.Resolution);
+                windowSize = new Size(
+                    (int)Math.Round(windowSize.Width / window.Scale),
+                    (int)Math.Round(windowSize.Height / window.Scale));
             }
 
+            Config.SetValue(FrameworkSetting.WindowedSize, windowSize);
             Config.SetValue(FrameworkSetting.WindowMode, WindowMode.Windowed);
         }
 

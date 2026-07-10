@@ -161,20 +161,33 @@ public class VeldridDeviceWrapper : RenderWrapper
                     if (pboIndex > 0)
                     {
                         OpenGLNative.glBindBuffer(BufferTarget.PixelPackBuffer, pboIds[nextIndex]);
-                        var dataPtr = OpenGLNative.glMapBuffer(
-                            BufferTarget.PixelPackBuffer,
-                            BufferAccess.ReadOnly);
+                        nint dataPtr = IntPtr.Zero;
 
-                        if (dataPtr != IntPtr.Zero.ToPointer())
+                        for (int attempt = 0; attempt < 3 && dataPtr == IntPtr.Zero; attempt++)
+                        {
+                            dataPtr = (nint)OpenGLNative.glMapBuffer(
+                                BufferTarget.PixelPackBuffer,
+                                BufferAccess.ReadOnly);
+
+                            if (dataPtr == IntPtr.Zero)
+                                OpenGLNative.glFinish();
+                        }
+
+                        if (dataPtr != IntPtr.Zero)
+                        {
                             try
                             {
-                                var span = new ReadOnlySpan<byte>(dataPtr, bufferSize);
+                                var span = new ReadOnlySpan<byte>(dataPtr.ToPointer(), bufferSize);
                                 encoder.WriteFrame(span);
                             }
                             finally
                             {
                                 OpenGLNative.glUnmapBuffer(BufferTarget.PixelPackBuffer);
                             }
+                        }
+                        else
+                            Console.Error.WriteLine("[OpenGL] Could not map a Veldrid capture PBO after waiting; skipping this frame.");
+
                         OpenGLNative.glBindBuffer(BufferTarget.PixelPackBuffer, 0);
                     }
                     
@@ -206,12 +219,22 @@ public class VeldridDeviceWrapper : RenderWrapper
             {
                 int pendingIndex = (pboIndex - 1) % 2;
                 OpenGLNative.glBindBuffer(BufferTarget.PixelPackBuffer, pboIds[pendingIndex]);
-                var dataPtr = OpenGLNative.glMapBuffer(BufferTarget.PixelPackBuffer, BufferAccess.ReadOnly);
-                if (dataPtr != IntPtr.Zero.ToPointer())
+                OpenGLNative.glFinish();
+                nint dataPtr = IntPtr.Zero;
+
+                for (int attempt = 0; attempt < 3 && dataPtr == IntPtr.Zero; attempt++)
+                {
+                    dataPtr = (nint)OpenGLNative.glMapBuffer(BufferTarget.PixelPackBuffer, BufferAccess.ReadOnly);
+
+                    if (dataPtr == IntPtr.Zero)
+                        OpenGLNative.glFinish();
+                }
+
+                if (dataPtr != IntPtr.Zero)
                 {
                     try
                     {
-                        var span = new ReadOnlySpan<byte>(dataPtr, pboSize);
+                        var span = new ReadOnlySpan<byte>(dataPtr.ToPointer(), pboSize);
                         encoder.WriteFrame(span);
                     }
                     finally
@@ -219,6 +242,9 @@ public class VeldridDeviceWrapper : RenderWrapper
                         OpenGLNative.glUnmapBuffer(BufferTarget.PixelPackBuffer);
                     }
                 }
+                else
+                    Console.Error.WriteLine("[OpenGL] Could not map the final Veldrid capture PBO after waiting; skipping this frame.");
+
                 OpenGLNative.glBindBuffer(BufferTarget.PixelPackBuffer, 0);
             }
             
