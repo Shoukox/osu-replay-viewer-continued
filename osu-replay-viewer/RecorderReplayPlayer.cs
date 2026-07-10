@@ -29,12 +29,13 @@ namespace osu_replay_renderer_netcore
         public Action OnFailed;
 
         private PerformanceGraph performanceGraph;
+        private PerformanceGraph strainGraph;
         private TrianglesPerformancePointsCounter rightSidePpCounter;
         private BeatmapDifficultyCache diffCache;
         private Bindable<int> ppCounter;
         private List<TimedDifficultyAttributes> timedAttrs;
         private Action<DrawableHitObject, JudgementResult> ppChangeHandler;
-
+        
         public RecorderReplayPlayer(Score score, bool hideOverlays, bool skipIntro)
             : base(score, new PlayerConfiguration
             {
@@ -76,6 +77,9 @@ namespace osu_replay_renderer_netcore
 
             HUDOverlay.ShowHud.Value = false;
             HUDOverlay.HoldToQuit.Hide();
+
+            foreach (var message in ReplayOverlay.ChildrenOfType<ScrollingMessage>().ToArray())
+                message.RemoveAndDisposeImmediately();
 
             if (HideOverlays)
             {
@@ -129,57 +133,77 @@ namespace osu_replay_renderer_netcore
                 Margin = new MarginPadding { Left = 10f, Top = 50f }
             });
 
+            EnsureGraphUpdateHandler();
+        }
+
+        private void EnsureGraphUpdateHandler()
+        {
+            if (ppChangeHandler != null)
+                return;
+
             ppChangeHandler = (dho, judgement) =>
             {
                 try
                 {
-                    if (Game is not OsuGameRecorder game)
-                        return;
-
-                    diffCache ??= Game.ChildrenOfType<BeatmapDifficultyCache>().FirstOrDefault();
-                    if (diffCache == null)
-                        return;
-
-                    if (timedAttrs == null)
-                    {
-                        var task = diffCache.GetTimedDifficultyAttributesAsync(
-                            game.WorkingBeatmap,
-                            GameplayState.Ruleset,
-                            Mods.Value.ToArray());
-
-                        task.Wait();
-                        timedAttrs = task.Result;
-                    }
-
-                    if (timedAttrs == null || timedAttrs.Count == 0)
-                        return;
-
-                    ppCounter ??= HUDOverlay.ChildrenOfType<PerformancePointsCounter>().FirstOrDefault()?.Current;
-
-                    int attribIndex = timedAttrs.BinarySearch(
-                        new TimedDifficultyAttributes(dho.HitObject.GetEndTime(), null));
-
-                    if (attribIndex < 0)
-                        attribIndex = ~attribIndex - 1;
-
-                    attribIndex = Math.Clamp(attribIndex, 0, timedAttrs.Count - 1);
-
-                    var attrib = timedAttrs[attribIndex].Attributes;
-                    var calc = GameplayState.Ruleset.CreatePerformanceCalculator();
-
-                    double totalPp = calc.Calculate(GameplayState.Score.ScoreInfo, attrib).Total;
-                    performanceGraph.PP.Value = totalPp;
-
-                    if (ppCounter != null)
-                        ppCounter.Value = (int)Math.Round(totalPp);
+                    UpdateGraphs(dho);
                 }
                 catch
                 {
-                    // Avoid crashing replay rendering because of auxiliary PP graph logic.
+                    // Avoid crashing replay rendering because of auxiliary graph logic.
                 }
             };
 
             DrawableRuleset.Playfield.NewResult += ppChangeHandler;
+        }
+
+        private void UpdateGraphs(DrawableHitObject dho)
+        {
+            if (Game is not OsuGameRecorder game)
+                return;
+
+            diffCache ??= Game.ChildrenOfType<BeatmapDifficultyCache>().FirstOrDefault();
+            if (diffCache == null)
+                return;
+
+            if (timedAttrs == null)
+            {
+                var task = diffCache.GetTimedDifficultyAttributesAsync(
+                    game.WorkingBeatmap,
+                    GameplayState.Ruleset,
+                    Mods.Value.ToArray());
+
+                task.Wait();
+                timedAttrs = task.Result;
+            }
+
+            if (timedAttrs == null || timedAttrs.Count == 0)
+                return;
+
+            int attribIndex = timedAttrs.BinarySearch(
+                new TimedDifficultyAttributes(dho.HitObject.GetEndTime(), null));
+
+            if (attribIndex < 0)
+                attribIndex = ~attribIndex - 1;
+
+            attribIndex = Math.Clamp(attribIndex, 0, timedAttrs.Count - 1);
+
+            var attrib = timedAttrs[attribIndex].Attributes;
+
+            if (strainGraph != null)
+                strainGraph.PP.Value = attrib.StarRating;
+
+            if (performanceGraph == null)
+                return;
+
+            ppCounter ??= HUDOverlay.ChildrenOfType<PerformancePointsCounter>().FirstOrDefault()?.Current;
+
+            var calc = GameplayState.Ruleset.CreatePerformanceCalculator();
+
+            double totalPp = calc.Calculate(GameplayState.Score.ScoreInfo, attrib).Total;
+            performanceGraph.PP.Value = totalPp;
+
+            if (ppCounter != null)
+                ppCounter.Value = (int)Math.Round(totalPp);
         }
 
         protected override void StartGameplay()
@@ -192,7 +216,7 @@ namespace osu_replay_renderer_netcore
 
             GameplayClockContainer.Reset();
             GameplayClockContainer.Start();
-
+            
             FieldInfo gameplayClockField = typeof(GameplayClockContainer)
                 .GetField("GameplayClock", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
 
@@ -233,6 +257,7 @@ namespace osu_replay_renderer_netcore
             diffCache = null;
             ppCounter = null;
             performanceGraph = null;
+            strainGraph = null;
             rightSidePpCounter = null;
 
             base.Dispose(isDisposing);

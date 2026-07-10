@@ -33,7 +33,7 @@ namespace osu_replay_renderer_netcore.HUD.Builtin
         public double WindowScale { get; set; } = 50;
         public double Smooth { get; set; } = 0.9999;
 
-        public PerformanceGraph() : base("Performance Graph")
+        public PerformanceGraph(string title = "Performance Graph") : base(title)
         {
             var bgColour = new Color4(0f, 0f, 0f, 0.6f);
             Vertices = new Vector2[NUM_OF_SEGMENTS];

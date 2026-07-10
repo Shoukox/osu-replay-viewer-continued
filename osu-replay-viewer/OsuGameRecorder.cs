@@ -33,6 +33,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using osu.Framework.Testing;
 
 namespace osu_replay_renderer_netcore
 {
@@ -526,8 +527,6 @@ namespace osu_replay_renderer_netcore
             };
             ScreenStack.Push(loader);
             ScreenStack.ScreenPushed += ScreenStack_ScreenPushed;
-            
-            //MenuCursorContainer.Cursor.RemoveAll(v => true, true);
 
             var configMgr = configCache.GetConfigFor(Ruleset.Value.CreateInstance());
             if (configMgr is OsuRulesetConfigManager osuMgr)
@@ -542,7 +541,6 @@ namespace osu_replay_renderer_netcore
                 maniaMgr.SetValue(ManiaRulesetSetting.ScrollSpeed, settings.ScrollSpeed);
                 maniaMgr.SetValue(ManiaRulesetSetting.ScrollDirection, settings.ScrollDirection == "down" ? ManiaScrollingDirection.Down : ManiaScrollingDirection.Up);
             }
-            
         }
 
         [BackgroundDependencyLoader]
