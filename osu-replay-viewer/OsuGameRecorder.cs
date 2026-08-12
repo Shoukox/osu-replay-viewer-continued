@@ -33,7 +33,6 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using osu.Framework.Testing;
 
 namespace osu_replay_renderer_netcore
 {
@@ -179,6 +178,8 @@ namespace osu_replay_renderer_netcore
                     Exit();
                     return null;
                 }
+                
+                toImport = tmpFile;
             }
 
             try
@@ -408,6 +409,7 @@ namespace osu_replay_renderer_netcore
             else
             {
                 config.SetValue(FrameworkSetting.FrameSync, FrameSync.Unlimited);
+                config.SetValue(FrameworkSetting.ExecutionMode, ExecutionMode.SingleThread);
             }
             
             config.SetValue(FrameworkSetting.VolumeMusic, settings.VolumeMusic);
@@ -559,7 +561,7 @@ namespace osu_replay_renderer_netcore
                 osuMgr.SetValue(OsuRulesetSetting.ReplayClickMarkersEnabled, false);
             } else if (configMgr is ManiaRulesetConfigManager maniaMgr)
             {
-                maniaMgr.SetValue(ManiaRulesetSetting.ScrollSpeed, settings.ScrollSpeed);
+                maniaMgr.SetValue(ManiaRulesetSetting.ScrollSpeed, Math.Clamp(settings.ScrollSpeed, 1.0, 40.0));
                 maniaMgr.SetValue(ManiaRulesetSetting.ScrollDirection, settings.ScrollDirection == "down" ? ManiaScrollingDirection.Down : ManiaScrollingDirection.Up);
             }
         }
