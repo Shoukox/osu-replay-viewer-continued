@@ -120,6 +120,7 @@ jobs:
           name: osu-replay-viewer-${{ needs.prepare.outputs.version }}-${{ matrix.runtime }}
           path: |
             .release/osu-replay-viewer-${{ needs.prepare.outputs.version }}-${{ matrix.runtime }}.*
+          include-hidden-files: true
           if-no-files-found: error
           retention-days: 7
 
