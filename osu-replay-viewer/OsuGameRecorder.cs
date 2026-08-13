@@ -384,7 +384,11 @@ namespace osu_replay_renderer_netcore
                 Exit();
             }
 
-            if (ModsOverride.Count > 0)
+            // Autoplay already created the complete mod list above and may have
+            // initialised stateful mod settings while preparing the beatmap.
+            // Replacing those instances would, for example, give Random a new
+            // seed and make the generated replay target a different beatmap.
+            if (ModsOverride.Count > 0 && !ReplayViewType.Equals("auto", StringComparison.OrdinalIgnoreCase))
             {
                 List<Mod> mods = new();
                 foreach (var mod in score.ScoreInfo.Ruleset.CreateInstance().AllMods)
