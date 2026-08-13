@@ -344,10 +344,13 @@ namespace osu_replay_renderer_netcore
 
                     var ruleset = beatmapInfo.Ruleset.CreateInstance();
                     var working = BeatmapManager.GetWorkingBeatmap(beatmapInfo);
-                    var beatmap = working.GetPlayableBeatmap(ruleset.RulesetInfo, new[] { ruleset.GetAutoplayMod() });
-                    score = ruleset.GetAutoplayMod().CreateScoreFromReplayData(beatmap, new[] { ruleset.GetAutoplayMod() });
+                    var autoplayMod = ruleset.GetAutoplayMod()
+                        ?? throw new InvalidOperationException("The selected ruleset does not support autoplay.");
+                    var autoplayMods = GetAutoplayMods(ruleset, autoplayMod);
+                    var beatmap = working.GetPlayableBeatmap(ruleset.RulesetInfo, autoplayMods);
+                    score = autoplayMod.CreateScoreFromReplayData(beatmap, autoplayMods);
                     score.ScoreInfo.BeatmapInfo = beatmapInfo;
-                    score.ScoreInfo.Mods = new[] { ruleset.GetAutoplayMod() };
+                    score.ScoreInfo.Mods = autoplayMods;
                     score.ScoreInfo.Ruleset = ruleset.RulesetInfo;
                     break;
                 case "file":
@@ -631,6 +634,25 @@ namespace osu_replay_renderer_netcore
                 
                 clock.ChangeSource(wrapped);
             }
+        }
+
+        private Mod[] GetAutoplayMods(Ruleset ruleset, ModAutoplay autoplayMod)
+        {
+            if (ModsOverride.Count == 0)
+                return new[] { autoplayMod };
+
+            List<Mod> mods = new();
+            foreach (var mod in ruleset.AllMods)
+            {
+                if (ModsOverride.Any(v => v.StartsWith("acronyms:")
+                        ? v[9..].Equals(mod.Acronym, StringComparison.OrdinalIgnoreCase)
+                        : v.Equals(mod.Name, StringComparison.OrdinalIgnoreCase)))
+                {
+                    mods.Add(mod.CreateInstance());
+                }
+            }
+
+            return mods.ToArray();
         }
 
         private static string RankToActualRank(ScoreRank rank)
