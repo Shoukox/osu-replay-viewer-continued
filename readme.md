@@ -28,15 +28,20 @@ to upgrade to make UI matches with actual game
 - Internet access on the first recording run, unless FFmpeg is already installed
 
 ## FFmpeg bootstrap
-When recording, the application looks for FFmpeg in this order:
+Windows and Linux release packages always use the application-local FFmpeg:
+`ffmpeg/ffmpeg.exe` on Windows and `ffmpeg/ffmpeg` on Linux. They never select
+the system `PATH`, user cache, or a manually configured external executable.
+
+On other supported platforms, the application looks for FFmpeg in this order:
 
 1. The executable configured in `ffmpeg_options.ffmpeg_executable`.
-2. The system `PATH` (preferred by default).
-3. An application-local `ffmpeg` directory.
-4. The per-user FFmpeg cache.
+2. An application-local `ffmpeg` directory.
+3. The per-user FFmpeg cache.
+4. The system `PATH`.
 
-If no usable executable is found, a GPL FFmpeg 8.1 build is downloaded and verified
-with SHA-256 checksums. Windows and Linux x64/arm64 builds are downloaded from
+If no usable executable is found on platforms that support bootstrap downloads,
+a GPL FFmpeg 8.1 build is downloaded and verified with SHA-256 checksums. Windows
+and Linux x64/arm64 builds are downloaded from
 [BtbN FFmpeg Builds](https://github.com/BtbN/FFmpeg-Builds/releases); macOS Intel
 uses the [evermeet.cx build](https://evermeet.cx/ffmpeg/). macOS ARM and other
 architectures require a system FFmpeg or a manually configured executable.
@@ -68,7 +73,6 @@ The relevant config section is generated and migrated automatically:
   "libraries_path": "",
   "ffmpeg_executable": "auto",
   "auto_download": true,
-  "prefer_system": true,
   "download_version": "n8.1",
   "cache_directory": "",
   "allow_encoder_fallback": true,
@@ -203,8 +207,10 @@ the `v1.2.3` GitHub Release attached to that commit. The release contains:
 - `osu-replay-viewer-v1.2.3-linux-x64.tar.gz`;
 - a SHA-256 checksum file for each package.
 
-The Linux archive does not contain the legacy Windows FFmpeg DLLs; the
-application downloads a compatible FFmpeg build automatically on first use.
+The Linux archive contains a static GPL FFmpeg 8.1 build under `ffmpeg/ffmpeg`.
+Linux always uses that application-local executable and never selects the host
+system FFmpeg. This keeps the recording arguments compatible with the release
+and avoids depending on the distribution's FFmpeg version.
 For a release without creating a marker commit, use **Actions → Build and
 publish release → Run workflow** and enter a version such as `v1.2.3`.
 

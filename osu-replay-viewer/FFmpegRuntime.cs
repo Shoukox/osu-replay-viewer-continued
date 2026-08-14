@@ -86,6 +86,12 @@ public static class FFmpegRuntimeResolver
 
     private static string ResolveExecutable(Config.FFmpegOptionsObject options, AssetSpec asset)
     {
+        // Windows and Linux releases ship a compatible FFmpeg under the
+        // application directory. Do not let a system FFmpeg silently
+        // override it: the recording argument contract is tied to the bundle.
+        if (OperatingSystem.IsWindows() || OperatingSystem.IsLinux())
+            return ResolveBundledExecutable();
+
         string configured = options.Executable?.Trim() ?? string.Empty;
         bool automatic = string.IsNullOrWhiteSpace(configured) ||
                          configured.Equals("auto", StringComparison.OrdinalIgnoreCase) ||
@@ -108,9 +114,6 @@ public static class FFmpegRuntimeResolver
         }
 
         var candidates = new List<string>();
-        if (options.PreferSystem)
-            candidates.Add(GetExecutableName());
-
         candidates.AddRange(GetApplicationExecutables());
 
         if (asset is not null)
@@ -120,8 +123,7 @@ public static class FFmpegRuntimeResolver
                 candidates.Add(cached);
         }
 
-        if (!options.PreferSystem)
-            candidates.Add(GetExecutableName());
+        candidates.Add(GetExecutableName());
 
         foreach (string candidate in candidates.Distinct(StringComparer.OrdinalIgnoreCase))
         {
@@ -147,6 +149,36 @@ public static class FFmpegRuntimeResolver
         }
 
         return DownloadAndInstall(options, asset);
+    }
+
+    private static string ResolveBundledExecutable()
+    {
+        string bundledDirectory = Path.Combine(AppContext.BaseDirectory, "ffmpeg");
+
+        foreach (string candidate in GetApplicationExecutables()
+                     .Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            try
+            {
+                MakeExecutableOnUnix(candidate);
+            }
+            catch
+            {
+                // Probe below reports the actionable failure if permissions
+                // cannot be repaired.
+            }
+
+            if (TryProbeExecutable(candidate, out _))
+            {
+                string resolved = Path.GetFullPath(candidate);
+                Console.WriteLine($"[FFmpeg] Bundled executable: {resolved}");
+                return resolved;
+            }
+        }
+
+        throw new InvalidOperationException(
+            $"{GetPlatformIdentifier()} requires the bundled FFmpeg under '{bundledDirectory}'. " +
+            "The release is incomplete or the bundled executable cannot be started.");
     }
 
     private static string ResolveEncoder(
@@ -603,8 +635,8 @@ public static class FFmpegRuntimeResolver
         string suffix = selectedVersion.ToLowerInvariant() switch
         {
             "master" => "master-latest",
-            "n8.1" or "8.1" => "n8.1-latest-8.1",
-            "n7.1" or "7.1" => "n7.1-latest-7.1",
+            "n8.1" or "8.1" => "n8.1-latest",
+            "n7.1" or "7.1" => "n7.1-latest",
             _ => null
         };
         if (suffix is null)
@@ -615,7 +647,14 @@ public static class FFmpegRuntimeResolver
 
         string rid = OperatingSystem.IsWindows() ? $"win{architecture}" : $"linux{architecture}";
         string extension = OperatingSystem.IsWindows() ? "zip" : "tar.xz";
-        string archiveName = $"ffmpeg-{suffix}-{rid}-gpl.{extension}";
+        string versionSuffix = selectedVersion.ToLowerInvariant() switch
+        {
+            "master" => string.Empty,
+            "n8.1" or "8.1" => "-8.1",
+            "n7.1" or "7.1" => "-7.1",
+            _ => null
+        };
+        string archiveName = $"ffmpeg-{suffix}-{rid}-gpl{versionSuffix}.{extension}";
         asset = new AssetSpec(
             $"{rid}-{selectedVersion.ToLowerInvariant()}-gpl",
             archiveName,

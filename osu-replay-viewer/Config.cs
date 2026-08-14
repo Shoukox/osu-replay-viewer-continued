@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Drawing;
 using Newtonsoft.Json;
 using System.IO;
@@ -44,7 +44,7 @@ public class Config
         [JsonProperty("renderer")] public GlRenderer Renderer = GlRenderer.Legacy;
     }
     [JsonProperty("record_options")] public RecordOptionsObject RecordOptions = new();
-    
+
     public class FFmpegOptionsObject
     {
         // Pipe is portable and does not depend on FFmpeg.AutoGen's legacy
@@ -54,7 +54,6 @@ public class Config
         [JsonProperty("libraries_path")] public string LibrariesPath = "";
         [JsonProperty("ffmpeg_executable")] public string Executable = "auto";
         [JsonProperty("auto_download")] public bool AutoDownload = true;
-        [JsonProperty("prefer_system")] public bool PreferSystem = true;
         [JsonProperty("download_version")] public string DownloadVersion = "n8.1";
         [JsonProperty("cache_directory")] public string CacheDirectory = "";
         [JsonProperty("allow_encoder_fallback")] public bool AllowEncoderFallback = true;
@@ -62,10 +61,9 @@ public class Config
         [JsonProperty("video_encoder_preset")] public string VideoEncoderPreset = "auto";
         [JsonProperty("video_encoder_bitrate")] public string VideoEncoderBitrate = "10M";
         [JsonProperty("use_cuda_if_possible")] public bool UseCudaIfPossible = true;
-        
     }
     [JsonProperty("ffmpeg_options")] public FFmpegOptionsObject FFmpegOptions = new();
-    
+
     public class OutputOptionsObject
     {
         [JsonProperty("pixel_format")] public PixelFormatMode PixelFormat = PixelFormatMode.RGB;
@@ -74,7 +72,7 @@ public class Config
     [JsonProperty("output_options")] public OutputOptionsObject OutputOptions = new();
 
     [JsonProperty("game_settings")] public GameSettings GameSettings = new();
-    
+
     private Config() { }
 
     public static Config ReadFromFile(string file)
@@ -92,7 +90,7 @@ public class Config
         }
 
         res.MigrateLegacyConfig();
-        
+
         res.SaveToFile(file); // update schema
         return res;
     }
