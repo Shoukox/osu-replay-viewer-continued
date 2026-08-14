@@ -88,7 +88,10 @@ namespace osu_replay_renderer_netcore.CustomHosts.Record
                 // reinterpret the raw-video timestamps.
                 args.AddRange(new[]
                 {
-                    "-fps_mode", "cfr",
+                    // FFmpeg 4.4 (the bundled Windows build) does not support
+                    // -fps_mode. -vsync cfr is the compatible spelling and keeps
+                    // the encoded video at a constant frame rate.
+                    "-vsync", "cfr",
                     "-r", Config.FPS.ToString(CultureInfo.InvariantCulture)
                 });
 
@@ -109,7 +112,77 @@ namespace osu_replay_renderer_netcore.CustomHosts.Record
 
         protected override void _writeFrameInternal(ReadOnlySpan<byte> frame)
         {
-            InputStream.Write(frame);
+            try
+            {
+                InputStream.Write(frame);
+            }
+            catch (Exception exception) when (exception is IOException || exception is ObjectDisposedException)
+            {
+                // If FFmpeg rejects the input, the OS closes stdin and the
+                // renderer otherwise reports only the misleading secondary
+                // "pipe is being closed" exception. Include the child
+                // process' exit code and stderr in the primary exception.
+                IOException failure = CreatePipeFailureException(exception);
+                TerminateFailedProcess();
+                throw failure;
+            }
+        }
+
+        private IOException CreatePipeFailureException(Exception innerException)
+        {
+            int? exitCode = null;
+            try
+            {
+                if (FFmpeg is not null && FFmpeg.HasExited)
+                {
+                    // Flush asynchronous stderr notifications before taking
+                    // the snapshot used in the exception message.
+                    FFmpeg.WaitForExit();
+                    exitCode = FFmpeg.ExitCode;
+                }
+            }
+            catch
+            {
+                // The process can disappear while the pipe exception is being
+                // handled. The captured stderr is still useful in that case.
+            }
+
+            string errorLog;
+            lock (errorLock)
+                errorLog = errorBuilder.ToString();
+
+            string status = exitCode.HasValue
+                ? $"FFmpeg video encoder exited with code {exitCode.Value}."
+                : "FFmpeg video encoder closed its input pipe unexpectedly.";
+            if (string.IsNullOrWhiteSpace(errorLog))
+                errorLog = "(FFmpeg did not write diagnostics to stderr.)";
+
+            return new IOException($"{status}{Environment.NewLine}{errorLog}", innerException);
+        }
+
+        private void TerminateFailedProcess()
+        {
+            try
+            {
+                if (FFmpeg is not null && !FFmpeg.HasExited)
+                    FFmpeg.Kill();
+            }
+            catch
+            {
+                // The process may have exited between the status check and
+                // Kill(). There is nothing left to clean up in that case.
+            }
+
+            try
+            {
+                InputStream?.Dispose();
+            }
+            catch
+            {
+                // Preserve the original encoder failure.
+            }
+
+            InputStream = null;
         }
 
         protected override void _finishInternal()
